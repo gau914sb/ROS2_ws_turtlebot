@@ -1,0 +1,20 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# IDE
+.vscode/
+.obsidian/
+*.code-workspace
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# OS
+.DS_Store
+Thumbs.db
