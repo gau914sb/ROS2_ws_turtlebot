@@ -557,10 +557,10 @@ def main(args=None):
             print('Generating plots...')
             
             # Static plot with all data
-            controller.plot_trajectory()
+            # controller.plot_trajectory()
             
             # Uncomment below for animation
-            # controller.animate_trajectory(interval=50)
+            controller.animate_trajectory(interval=50)
 
 
 if __name__ == '__main__':

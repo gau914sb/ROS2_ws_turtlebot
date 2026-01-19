@@ -21,11 +21,16 @@ def generate_launch_description():
     number_of_robots = 4
     namespace = 'tb3'
     # [x, y, yaw] - yaw in radians (0=east, π/2=north, π=west, 3π/2=south)
-    pose = [[-2, -1, 0],      # Robot 1: bottom-left, facing east (right)
-            [1, -1, 1.57],    # Robot 2: bottom-right, facing north (up) 
-            [1, 1, 3.14],     # Robot 3: top-right, facing west (left)
-            [-1, 1, -1.57]]   # Robot 4: top-left, facing south (down)
+    # pose = [[0, 0, 0],      # Robot 1: bottom-left, facing east (right)
+    #         [1.9, 0, 0],    # Robot 2: bottom-right, facing north (up) 
+    #         [1.9, 1.9, 0],     # Robot 3: top-right, facing west (left)
+    #         [0, 1.9, 0]]   # Robot 4: top-left, facing south (down)
     
+    pose = [[1, 1, 0],      # Robot 1: bottom-left, facing east (right)
+            [3.7, 1, 0],    # Robot 2: bottom-right, facing north (up) 
+            [3.7, 1.7, 0],     # Robot 3: top-right, facing west (left)
+            [1, 1.7, 0]]   # Robot 4: top-left, facing south (down)
+
     model_folder = 'turtlebot3_' + TURTLEBOT3_MODEL
     urdf_path = os.path.join(
         get_package_share_directory('turtlebot3_gazebo'),
