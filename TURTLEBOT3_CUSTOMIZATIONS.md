@@ -338,10 +338,13 @@ robot_data[robot_name] = {
 | 2026-01-18 12:30 UTC | Created circumnavigation_controller.py | Copilot | Implemented MATLAB circumnavigation control law (circum_experimental_multiple_entry.m) |
 | 2026-01-18 13:00 UTC | Added trajectory plotting to circumnavigation_controller.py | Copilot | 4-panel static plot (trajectory, θ, r, ω vs time) and animation capability |
 | 2026-01-18 13:15 UTC | Fixed shutdown error handling | Copilot | Graceful ROS context cleanup to avoid errors on Ctrl+C |
+| 2026-01-22 14:00 UTC | Enhanced multi_unicycle_controller.py plotting | Copilot | Added neighbor connection visualization (dotted for initial, solid for current/final positions) |
+| 2026-01-22 14:30 UTC | Added auto-save plots with timestamps | Copilot | Plots auto-save to ~/ros2_ws/plots/{timestamp}/ on shutdown (trajectory.png, distances.png, combined_animation.gif) |
+| 2026-01-22 15:00 UTC | Created combined animation feature | Copilot | Side-by-side animation (1x2 layout) showing trajectory + distance plots synchronized |
 
 ---
 
-**Last Updated:** January 18, 2026 13:15 UTC  
+**Last Updated:** January 22, 2026 15:00 UTC  
 **ROS2 Version:** Humble  
 **Gazebo Version:** 11+  
 **TurtleBot3 Model:** Burger

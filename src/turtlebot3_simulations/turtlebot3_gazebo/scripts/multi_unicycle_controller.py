@@ -28,6 +28,8 @@ from typing import Dict, List, Tuple, Optional
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import time
+from datetime import datetime
+import os
 from scipy.linalg import block_diag
 
 
@@ -112,9 +114,9 @@ class MultiUnicycleController(Node):
         
         self.Hbar = np.kron(self.H, np.eye(2))
 
-        self.v_max = 0.2  # Max linear velocity
+        self.v_max = 0.22  # Max linear velocity
 
-        self.omega_max = 2.84  # Max angular velocity
+        self.omega_max = 2.50  # Max angular velocity
 
         self.K_p_w = 1.0  # Angular velocity gain
 
@@ -133,6 +135,8 @@ class MultiUnicycleController(Node):
         self.gbar_star = np.array([])
         self.Kc = np.array([])
         self.Ks = np.array([])
+
+        self.length = 0.1
 
         for i in range(0, 10, 2):
 
@@ -198,6 +202,22 @@ class MultiUnicycleController(Node):
             self.robot_names[2]: 'green',
             self.robot_names[3]: 'orange'
         } if self.num_robots >= 4 else {name: f'C{i}' for i, name in enumerate(self.robot_names)}
+        
+        # Distance logging for neighbor pairs
+        self.distance_log = {i: [] for i in range(self.H.shape[0])}  # One list per edge
+        
+        # Calculate desired distances from pstar
+        self.desired_distances = []
+        for i in range(0, len(self.estar), 2):
+            e_star_vec = self.estar[i:i+2].flatten()
+            d_star = np.linalg.norm(e_star_vec)
+            self.desired_distances.append(d_star)
+        
+        # Edge labels for plotting
+        self.edge_labels = []
+        pairs = self.get_connected_pairs()
+        for i, j in pairs:
+            self.edge_labels.append(f'{self.robot_names[i]} - {self.robot_names[j]}')
 
     def _create_odom_callback(self, robot_name: str):
         """Create odometry callback closure for a specific robot."""
@@ -458,7 +478,7 @@ class MultiUnicycleController(Node):
         return sum(1 for robot in self.robots.values() if robot.odom_received)
 
     def log_trajectories(self):
-        """Log current positions of all robots."""
+        """Log current positions of all robots and neighbor distances."""
         if not self.logging_enabled:
             return
             
@@ -474,6 +494,15 @@ class MultiUnicycleController(Node):
                     robot.trajectory_x.append(robot.x)
                     robot.trajectory_y.append(robot.y)
                     robot.trajectory_theta.append(robot.theta)
+            
+            # Log neighbor distances
+            if self.is_ready():
+                positions = self.get_all_xy_array()  # Shape (num_robots, 2)
+                pairs = self.get_connected_pairs()
+                for edge_idx, (i, j) in enumerate(pairs):
+                    dist = np.linalg.norm(positions[i] - positions[j])
+                    self.distance_log[edge_idx].append(dist)
+            
             self.last_log_time = current_time
 
     # ============================================
@@ -586,18 +615,28 @@ class MultiUnicycleController(Node):
 
         #  Unicycle conversion starts here
 
-        v_mag = np.array([np.linalg.norm(d_dt[i:i+2]) for i in range(0, 8, 2)])
+        # v_mag = np.array([np.linalg.norm(d_dt[i:i+2]) for i in range(0, 8, 2)])
 
-        theta_desired = np.array([atan2(d_dt[i+1], d_dt[i]) for i in range(0, 8, 2)])
+        # theta_desired = np.array([atan2(d_dt[i+1], d_dt[i]) for i in range(0, 8, 2)])
 
         theta_current = self.get_all_heading_array().flatten()
 
-        theta_error = np.array([self.normalize_angle(theta_desired[i] - theta_current[i]) 
-                        for i in range(self.num_robots)])
+        # theta_error = np.array([self.normalize_angle(theta_desired[i] - theta_current[i]) 
+        #                 for i in range(self.num_robots)])
         
-        v_uni = v_mag * np.cos(theta_error)
+        # v_uni = v_mag * np.cos(theta_error)
 
-        w_uni = self.K_p_w * theta_error
+        # w_uni = self.K_p_w * theta_error
+
+        v_uni = np.array([0.0]*self.num_robots)
+        w_uni = np.array([0.0]*self.num_robots)
+
+
+        for i in range(self.num_robots):
+            v_uni[i] = 2.5 * (d_dt[2*i] * cos(theta_current[i]) + d_dt[2*i+1] * sin(theta_current[i]))
+
+        for i in range(self.num_robots):
+            w_uni[i] = -d_dt[2*i] * sin(theta_current[i]) / self.length + d_dt[2*i+1] * cos(theta_current[i]) / self.length
 
         v_uni = np.clip(v_uni, -self.v_max, self.v_max)
 
@@ -684,6 +723,59 @@ class MultiUnicycleController(Node):
     # PLOTTING AND ANIMATION
     # ============================================
     
+    def get_save_directory(self, timestamp: str = None) -> str:
+        """
+        Get or create the directory for saving plots.
+        Creates a timestamped subfolder for better organization.
+        
+        Args:
+            timestamp: Optional timestamp string. If None, uses current time.
+        
+        Returns:
+            str: Path to the save directory
+        """
+        if timestamp is None:
+            timestamp = self.get_timestamp()
+        
+        base_dir = os.path.expanduser('~/ros2_ws/plots')
+        save_dir = os.path.join(base_dir, timestamp)
+        os.makedirs(save_dir, exist_ok=True)
+        return save_dir
+    
+    def get_timestamp(self) -> str:
+        """
+        Get current timestamp string for filenames.
+        
+        Returns:
+            str: Timestamp in format YYYY-MM-DD_HH-MM-SS
+        """
+        return datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    
+    def save_all_plots(self):
+        """
+        Save all plots (trajectory, distances, combined animation) with timestamp.
+        Creates a subfolder with the timestamp for organization.
+        Called automatically on shutdown.
+        """
+        timestamp = self.get_timestamp()
+        save_dir = self.get_save_directory(timestamp)
+        
+        print(f'Saving plots to {save_dir}...')
+        
+        # Save trajectory plot (PNG)
+        traj_path = os.path.join(save_dir, 'trajectory.png')
+        self.plot_trajectories(save_path=traj_path, show=False)
+        
+        # Save distances plot (PNG)
+        dist_path = os.path.join(save_dir, 'distances.png')
+        self.plot_distances(save_path=dist_path, show=False)
+        
+        # Save combined animation (trajectory + distance side by side) as GIF
+        anim_path = os.path.join(save_dir, 'combined_animation.gif')
+        self.animate_combined(save_path=anim_path, show=False)
+        
+        print(f'All plots saved successfully to {save_dir}!')
+    
     def get_connected_pairs(self) -> List[Tuple[int, int]]:
         """
         Get list of connected robot pairs from the incidence matrix H.
@@ -726,12 +818,13 @@ class MultiUnicycleController(Node):
                 ax.plot(x_vals, y_vals, linestyle=linestyle, linewidth=linewidth, 
                        alpha=alpha, color=color)
     
-    def plot_trajectories(self, save_path=None):
+    def plot_trajectories(self, save_path=None, show=True):
         """
-        Plot trajectories of all robots with heading arrows.
+        Plot trajectories of all robots.
         
         Args:
             save_path: Optional path to save the figure
+            show: Whether to display the plot (default True)
         """
         # Check if we have data
         has_data = False
@@ -796,17 +889,21 @@ class MultiUnicycleController(Node):
         
         if save_path:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
-            print(f'Figure saved to {save_path}')
+            print(f'Trajectory plot saved to {save_path}')
         
-        plt.show()
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
     
-    def animate_trajectories(self, interval=50, save_path=None):
+    def animate_trajectories(self, interval=50, save_path=None, show=True):
         """
         Create an animation of all robots moving.
         
         Args:
             interval: Animation interval in milliseconds
             save_path: Optional path to save animation (as .gif or .mp4)
+            show: Whether to display the animation (default True)
         """
         # Check if we have data
         max_points = 0
@@ -942,7 +1039,311 @@ class MultiUnicycleController(Node):
                 anim.save(save_path, writer='ffmpeg', fps=1000//interval)
             print(f'Animation saved to {save_path}')
         
-        plt.show()
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+    
+    def plot_distances(self, save_path=None, show=True):
+        """
+        Plot neighbor distances over time for all edges (Figure 2).
+        Shows actual distances vs desired distances.
+        
+        Args:
+            save_path: Optional path to save the figure
+            show: Whether to display the plot (default True)
+        """
+        # Check if we have distance data
+        has_data = any(len(self.distance_log[i]) > 1 for i in range(self.H.shape[0]))
+        
+        if not has_data:
+            print('Not enough distance data to plot')
+            return
+        
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Colors for each edge
+        edge_colors = ['blue', 'red', 'green', 'orange', 'purple']
+        
+        # Get the time array (trimmed to match distance data length)
+        num_points = len(self.distance_log[0])
+        time_data = self.trajectory_time[:num_points]
+        
+        # Plot actual distances for each edge
+        pairs = self.get_connected_pairs()
+        for edge_idx in range(self.H.shape[0]):
+            if len(self.distance_log[edge_idx]) > 1:
+                color = edge_colors[edge_idx % len(edge_colors)]
+                i, j = pairs[edge_idx]
+                label = f'Edge {edge_idx+1}: {self.robot_names[i]}-{self.robot_names[j]}'
+                
+                # Plot actual distance (solid line)
+                ax.plot(time_data, self.distance_log[edge_idx], '-', 
+                       color=color, linewidth=2, label=f'{label} (actual)')
+                
+                # Plot desired distance (dashed horizontal line)
+                ax.axhline(y=self.desired_distances[edge_idx], color=color, 
+                          linestyle='--', linewidth=1.5, alpha=0.7,
+                          label=f'{label} (desired: {self.desired_distances[edge_idx]:.3f}m)')
+        
+        ax.set_xlabel('Time (s)', fontsize=12)
+        ax.set_ylabel('Distance (m)', fontsize=12)
+        ax.set_title('Figure 2: Neighbor Distances Over Time', fontsize=14)
+        ax.legend(loc='best', fontsize=9, ncol=2)
+        ax.grid(True, alpha=0.3)
+        
+        # Add safety and connectivity radius lines if meaningful
+        ax.axhline(y=self.Rs, color='red', linestyle=':', linewidth=1, alpha=0.5,
+                  label=f'Safety radius: {self.Rs}m')
+        ax.axhline(y=self.Rc, color='gray', linestyle=':', linewidth=1, alpha=0.5,
+                  label=f'Connectivity radius: {self.Rc}m')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f'Distances plot saved to {save_path}')
+        
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+    
+    def animate_combined(self, interval=50, save_path=None, show=True):
+        """
+        Create a combined animation with trajectory and distance plots side by side.
+        Layout: 1 row x 2 columns (trajectory on left, distances on right)
+        
+        Args:
+            interval: Animation interval in milliseconds
+            save_path: Optional path to save animation (as .gif or .mp4)
+            show: Whether to display the animation (default True)
+        """
+        # Check if we have data
+        max_points = 0
+        for name in self.robot_names:
+            max_points = max(max_points, len(self.robots[name].trajectory_x))
+        
+        if max_points < 2:
+            print('Not enough trajectory data to animate')
+            return
+        
+        has_distance_data = any(len(self.distance_log[i]) > 1 for i in range(self.H.shape[0]))
+        if not has_distance_data:
+            print('Not enough distance data to animate')
+            return
+        
+        # Create figure with 1 row x 2 columns
+        fig, (ax_traj, ax_dist) = plt.subplots(1, 2, figsize=(20, 9))
+        
+        # ============================================
+        # LEFT PLOT: Trajectory Animation
+        # ============================================
+        
+        # Compute axis limits from all trajectory data
+        all_x, all_y = [], []
+        for name in self.robot_names:
+            robot = self.robots[name]
+            all_x.extend(robot.trajectory_x)
+            all_y.extend(robot.trajectory_y)
+        
+        if not all_x:
+            print('No trajectory data')
+            return
+        
+        margin = 0.5
+        ax_traj.set_xlim(min(all_x) - margin, max(all_x) + margin)
+        ax_traj.set_ylim(min(all_y) - margin, max(all_y) + margin)
+        
+        # Initialize plot elements for each robot
+        trajectory_lines = {}
+        robot_markers = {}
+        heading_arrows = {}
+        
+        for name in self.robot_names:
+            color = self.robot_colors.get(name, 'blue')
+            trajectory_lines[name], = ax_traj.plot([], [], '-', color=color, 
+                                                    linewidth=1.5, alpha=0.7, label=name)
+            robot_markers[name], = ax_traj.plot([], [], 'o', color=color, markersize=10,
+                                                 markeredgecolor='black', markeredgewidth=1.5)
+            heading_arrows[name] = ax_traj.arrow(0, 0, 0, 0, head_width=0.06, head_length=0.04,
+                                                  fc=color, ec=color)
+        
+        # Plot initial neighbor connections (dotted) - static throughout animation
+        initial_positions = np.array([[self.robots[name].trajectory_x[0], 
+                                        self.robots[name].trajectory_y[0]] 
+                                       for name in self.robot_names 
+                                       if len(self.robots[name].trajectory_x) > 0])
+        if len(initial_positions) == self.num_robots:
+            pairs = self.get_connected_pairs()
+            for idx, (i, j) in enumerate(pairs):
+                x_vals = [initial_positions[i, 0], initial_positions[j, 0]]
+                y_vals = [initial_positions[i, 1], initial_positions[j, 1]]
+                if idx == 0:
+                    ax_traj.plot(x_vals, y_vals, ':', linewidth=2.0, alpha=0.5, 
+                                color='gray', label='Initial connections')
+                else:
+                    ax_traj.plot(x_vals, y_vals, ':', linewidth=2.0, alpha=0.5, color='gray')
+        
+        # Initialize connection lines (solid) - updated every frame
+        connection_lines = []
+        pairs = self.get_connected_pairs()
+        for _ in pairs:
+            line, = ax_traj.plot([], [], '-', linewidth=2.5, alpha=0.8, color='black')
+            connection_lines.append(line)
+        
+        # Time text on trajectory plot
+        time_text = ax_traj.text(0.02, 0.98, '', transform=ax_traj.transAxes, fontsize=12,
+                                  verticalalignment='top', fontfamily='monospace',
+                                  bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        
+        ax_traj.set_xlabel('X (m)', fontsize=12)
+        ax_traj.set_ylabel('Y (m)', fontsize=12)
+        ax_traj.set_title('Robot Trajectories', fontsize=14)
+        ax_traj.legend(loc='upper right', fontsize=9)
+        ax_traj.grid(True, alpha=0.3)
+        ax_traj.set_aspect('equal')
+        
+        # ============================================
+        # RIGHT PLOT: Distance Animation
+        # ============================================
+        
+        edge_colors = ['blue', 'red', 'green', 'orange', 'purple']
+        
+        # Get time and distance data
+        num_dist_points = len(self.distance_log[0])
+        time_data = self.trajectory_time[:num_dist_points]
+        
+        # Set up distance plot axes
+        max_time = max(time_data) if time_data else 1.0
+        all_distances = []
+        for edge_idx in range(self.H.shape[0]):
+            all_distances.extend(self.distance_log[edge_idx])
+        
+        ax_dist.set_xlim(0, max_time * 1.05)
+        ax_dist.set_ylim(0, max(all_distances + self.desired_distances) * 1.1)
+        
+        # Plot desired distances (static dashed lines)
+        for edge_idx in range(self.H.shape[0]):
+            color = edge_colors[edge_idx % len(edge_colors)]
+            i, j = pairs[edge_idx]
+            ax_dist.axhline(y=self.desired_distances[edge_idx], color=color, 
+                           linestyle='--', linewidth=1.5, alpha=0.5)
+        
+        # Initialize distance lines (animated)
+        distance_lines = []
+        for edge_idx in range(self.H.shape[0]):
+            color = edge_colors[edge_idx % len(edge_colors)]
+            i, j = pairs[edge_idx]
+            label = f'{self.robot_names[i]}-{self.robot_names[j]}'
+            line, = ax_dist.plot([], [], '-', color=color, linewidth=2, label=label)
+            distance_lines.append(line)
+        
+        # Vertical time indicator line
+        time_indicator, = ax_dist.plot([], [], 'k-', linewidth=1.5, alpha=0.7)
+        
+        ax_dist.set_xlabel('Time (s)', fontsize=12)
+        ax_dist.set_ylabel('Distance (m)', fontsize=12)
+        ax_dist.set_title('Neighbor Distances Over Time', fontsize=14)
+        ax_dist.legend(loc='upper right', fontsize=9)
+        ax_dist.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        def init():
+            # Initialize trajectory elements
+            for name in self.robot_names:
+                trajectory_lines[name].set_data([], [])
+                robot_markers[name].set_data([], [])
+            for line in connection_lines:
+                line.set_data([], [])
+            time_text.set_text('')
+            
+            # Initialize distance elements
+            for line in distance_lines:
+                line.set_data([], [])
+            time_indicator.set_data([], [])
+            
+            return (list(trajectory_lines.values()) + list(robot_markers.values()) + 
+                    connection_lines + [time_text] + distance_lines + [time_indicator])
+        
+        def update(frame):
+            # ============================================
+            # Update Trajectory Plot (left)
+            # ============================================
+            for name in self.robot_names:
+                robot = self.robots[name]
+                color = self.robot_colors.get(name, 'blue')
+                
+                if frame < len(robot.trajectory_x):
+                    # Update trajectory
+                    trajectory_lines[name].set_data(robot.trajectory_x[:frame+1], 
+                                                    robot.trajectory_y[:frame+1])
+                    
+                    # Update robot position
+                    robot_markers[name].set_data([robot.trajectory_x[frame]], 
+                                                  [robot.trajectory_y[frame]])
+                    
+                    # Update heading arrow
+                    heading_arrows[name].remove()
+                    arrow_length = 0.15
+                    dx = arrow_length * np.cos(robot.trajectory_theta[frame])
+                    dy = arrow_length * np.sin(robot.trajectory_theta[frame])
+                    heading_arrows[name] = ax_traj.arrow(robot.trajectory_x[frame], 
+                                                          robot.trajectory_y[frame],
+                                                          dx, dy, head_width=0.06, head_length=0.04,
+                                                          fc=color, ec=color)
+            
+            # Update time text
+            if frame < len(self.trajectory_time):
+                time_text.set_text(f't = {self.trajectory_time[frame]:.1f}s')
+            
+            # Update connection lines
+            current_positions = []
+            for name in self.robot_names:
+                robot = self.robots[name]
+                if frame < len(robot.trajectory_x):
+                    current_positions.append([robot.trajectory_x[frame], robot.trajectory_y[frame]])
+                else:
+                    current_positions.append([robot.trajectory_x[-1], robot.trajectory_y[-1]])
+            current_positions = np.array(current_positions)
+            
+            for idx, (i, j) in enumerate(pairs):
+                x_vals = [current_positions[i, 0], current_positions[j, 0]]
+                y_vals = [current_positions[i, 1], current_positions[j, 1]]
+                connection_lines[idx].set_data(x_vals, y_vals)
+            
+            # ============================================
+            # Update Distance Plot (right)
+            # ============================================
+            if frame < num_dist_points:
+                current_time = time_data[frame]
+                
+                # Update distance lines up to current frame
+                for edge_idx in range(self.H.shape[0]):
+                    distance_lines[edge_idx].set_data(time_data[:frame+1], 
+                                                       self.distance_log[edge_idx][:frame+1])
+                
+                # Update time indicator vertical line
+                time_indicator.set_data([current_time, current_time], [0, ax_dist.get_ylim()[1]])
+            
+            return (list(trajectory_lines.values()) + list(robot_markers.values()) + 
+                    connection_lines + [time_text] + distance_lines + [time_indicator])
+        
+        anim = FuncAnimation(fig, update, frames=max_points,
+                            init_func=init, blit=False, interval=interval, repeat=True)
+        
+        if save_path:
+            if save_path.endswith('.gif'):
+                anim.save(save_path, writer='pillow', fps=1000//interval)
+            else:
+                anim.save(save_path, writer='ffmpeg', fps=1000//interval)
+            print(f'Combined animation saved to {save_path}')
+        
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
 
 
 # ============================================
@@ -1039,17 +1440,11 @@ def main(args=None):
         except:
             pass
         
-        # Plot trajectories after ROS cleanup
+        # Save all plots after ROS cleanup
         total_points = sum(len(controller.robots[name].trajectory_x) for name in controller.robot_names)
         if total_points > 2:
             print(f'Recorded {total_points} total trajectory points')
-            print('Generating plot...')
-            
-            # Static plot with all trajectories
-            controller.plot_trajectories()
-            
-            # Uncomment for animation
-            # controller.animate_trajectories(interval=50)
+            controller.save_all_plots()
 
 
 if __name__ == '__main__':
