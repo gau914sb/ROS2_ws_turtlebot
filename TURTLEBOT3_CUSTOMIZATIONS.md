@@ -218,6 +218,134 @@ ros2 launch turtlebot3_gazebo empty_world.launch.py
    ros2 launch turtlebot3_gazebo spawn_4_bots.launch.py
    ```
 
+3. **spawn_4_bots_aruco.launch.py**: Multi-robot with colored identification markers
+   ```bash
+   ros2 launch turtlebot3_gazebo spawn_4_bots_aruco.launch.py
+   ```
+
+---
+
+## Robot Identification Markers ✅
+
+### Overview
+Each robot has an **ArUco marker texture** placed on top for visual identification in Gazebo. Markers are dynamically added to the SDF model at launch time using Ogre material scripts.
+
+### Marker Types:
+
+#### ArUco Texture Markers (Default)
+| Robot | Namespace | Texture File | Material Name |
+|-------|-----------|--------------|---------------|
+| Robot 1 | tb3_1 | agent_0.png | Aruco/Marker0 |
+| Robot 2 | tb3_2 | agent_1.png | Aruco/Marker1 |
+| Robot 3 | tb3_3 | agent_2.png | Aruco/Marker2 |
+| Robot 4 | tb3_4 | agent_3.png | Aruco/Marker3 |
+
+#### Color Markers (Fallback)
+| Robot | Namespace | Marker Color | RGB Values |
+|-------|-----------|--------------|------------|
+| Robot 1 | tb3_1 | Red | (1.0, 0.0, 0.0) |
+| Robot 2 | tb3_2 | Green | (0.0, 1.0, 0.0) |
+| Robot 3 | tb3_3 | Blue | (0.0, 0.0, 1.0) |
+| Robot 4 | tb3_4 | Yellow | (1.0, 1.0, 0.0) |
+
+### Marker Configuration:
+- **Position (relative to base_link):** `-0.03 0 0.190` (x, y, z in meters)
+  - X: -0.03m (slightly behind center, aligned with robot body)
+  - Y: 0m (centered)
+  - Z: 0.190m (just above the LiDAR sensor)
+- **Size:** 0.08m × 0.08m × 0.001m (8cm square, 1mm thick flat marker)
+- **Attachment:** Fixed joint to `base_link`
+
+### ArUco Material Installation (Required):
+ArUco textures must be installed to Gazebo's system-wide media path. Use the provided installation script:
+
+```bash
+# Run from ros2_ws root directory (one-time setup)
+./install_aruco_materials.sh
+```
+
+This script automatically:
+- Copies `aruco.material` to `/usr/share/gazebo-11/media/materials/scripts/`
+- Copies `agent_*.png` textures to `/usr/share/gazebo-11/media/materials/textures/`
+- Sets correct permissions (chmod 644) so Gazebo can read them
+
+**Manual installation (if needed):**
+```bash
+sudo cp src/turtlebot3/turtlebot3_description/media/materials/scripts/aruco.material /usr/share/gazebo-11/media/materials/scripts/
+sudo cp src/turtlebot3/turtlebot3_description/media/materials/textures/agent_*.png /usr/share/gazebo-11/media/materials/textures/
+sudo chmod 644 /usr/share/gazebo-11/media/materials/scripts/aruco.material
+sudo chmod 644 /usr/share/gazebo-11/media/materials/textures/agent_*.png
+```
+
+**Material File Location:** `/usr/share/gazebo-11/media/materials/scripts/aruco.material`
+**Texture Files Location:** `/usr/share/gazebo-11/media/materials/textures/agent_[0-3].png`
+
+### Implementation Details:
+The markers are added via dynamic SDF modification using `xml.etree.ElementTree`:
+
+```python
+# ArUco marker SDF material reference
+material = ET.SubElement(visual, 'material')
+script = ET.SubElement(material, 'script')
+uri = ET.SubElement(script, 'uri')
+uri.text = '__default__'  # Use Gazebo's default media path
+name = ET.SubElement(script, 'name')
+name.text = f'Aruco/Marker{robot_idx}'  # References aruco.material
+
+# Color markers fallback (RGBA)
+ROBOT_COLORS = [
+    (1.0, 0.0, 0.0, 1.0),  # Robot 1: Red
+    (0.0, 1.0, 0.0, 1.0),  # Robot 2: Green
+    (0.0, 0.0, 1.0, 1.0),  # Robot 3: Blue
+    (1.0, 1.0, 0.0, 1.0),  # Robot 4: Yellow
+]
+```
+
+### Why SDF Modification (Not URDF):
+- **URDF Limitation:** URDF files don't contain Gazebo-specific plugins (diff_drive, joint_state, IMU)
+- **SDF Contains:** All required Gazebo plugins for robot functionality
+- **Solution:** Modify the existing SDF file dynamically to add marker visual/joint while preserving all plugins
+
+### Critical Notes:
+⚠️ **DO NOT modify `GAZEBO_RESOURCE_PATH` or `GAZEBO_MODEL_PATH`** in the launch file using `os.environ`. This causes gzclient to crash with "Assertion 'px != 0' failed" error.
+
+✅ **Correct approach:** Install materials to Gazebo's default path (`/usr/share/gazebo-11/media/materials/`) and use `__default__` URI in SDF.
+
+### Ogre Material File Format:
+```ogre
+material Aruco/Marker0
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      texture_unit
+      {
+        texture agent_0.png
+        filtering trilinear  # Use trilinear to avoid pixelation
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+```
+
+### Launch File:
+**File:** [`spawn_4_bots_aruco.launch.py`](src/turtlebot3_simulations/turtlebot3_gazebo/launch/spawn_4_bots_aruco.launch.py)
+
+```bash
+# Launch 4 robots with colored markers
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo spawn_4_bots_aruco.launch.py
+```
+
+---
+
 ### Features of Custom Launch File:
 - **Fixed positions**: 4 robots in square formation ([-1,-1], [1,-1], [1,1], [-1,1])
 - **Individual orientations**: Each robot faces different direction (east, north, west, south)
@@ -341,12 +469,18 @@ robot_data[robot_name] = {
 | 2026-01-22 14:00 UTC | Enhanced multi_unicycle_controller.py plotting | Copilot | Added neighbor connection visualization (dotted for initial, solid for current/final positions) |
 | 2026-01-22 14:30 UTC | Added auto-save plots with timestamps | Copilot | Plots auto-save to ~/ros2_ws/plots/{timestamp}/ on shutdown (trajectory.png, distances.png, combined_animation.gif) |
 | 2026-01-22 15:00 UTC | Created combined animation feature | Copilot | Side-by-side animation (1x2 layout) showing trajectory + distance plots synchronized |
+| 2026-01-29 14:00 UTC | Created spawn_4_bots_aruco.launch.py | Copilot | Multi-robot launch with colored identification markers dynamically added to SDF |
+| 2026-01-29 14:30 UTC | Tuned marker positions | User | Marker position set to `-0.03 0 0.178` (just above LiDAR, centered) |
+| 2026-01-29 15:00 UTC | Implemented ArUco texture markers | Copilot | Added Ogre material script support for PNG textures on markers |
+| 2026-01-29 15:15 UTC | Fixed gzclient crash | Copilot | Root cause: modifying os.environ for GAZEBO paths. Solution: use `__default__` URI |
+| 2026-01-29 15:20 UTC | Fixed texture permissions | Copilot | chmod 644 on texture files - Gazebo couldn't read them (was rw-------) |
+| 2026-01-29 15:25 UTC | Fixed pixelation | Copilot | Changed filtering from 'none' to 'trilinear' in aruco.material |
 
 ---
 
-**Last Updated:** January 22, 2026 15:00 UTC  
+**Last Updated:** January 29, 2026 15:30 UTC  
 **ROS2 Version:** Humble  
-**Gazebo Version:** 11+  
+**Gazebo Version:** 11 (Gazebo Classic with Ogre3D rendering)  
 **TurtleBot3 Model:** Burger
 
 ## How to Update This Documentation

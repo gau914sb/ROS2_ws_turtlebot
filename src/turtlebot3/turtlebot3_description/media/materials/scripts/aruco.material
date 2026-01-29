@@ -1,0 +1,94 @@
+# ArUco marker materials for TurtleBot3 robot identification
+# These materials are referenced via model://turtlebot3_description/media/materials/scripts
+
+# --- Robot 0 Material ---
+material Aruco/Marker0
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      
+      texture_unit
+      {
+        texture agent_0.png
+        filtering none
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+
+# --- Robot 1 Material ---
+material Aruco/Marker1
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      
+      texture_unit
+      {
+        texture agent_1.png
+        filtering none
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+
+# --- Robot 2 Material ---
+material Aruco/Marker2
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      
+      texture_unit
+      {
+        texture agent_2.png
+        filtering none
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+
+# --- Robot 3 Material ---
+material Aruco/Marker3
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      
+      texture_unit
+      {
+        texture agent_3.png
+        filtering none
+        scale 1.0 1.0
+      }
+    }
+  }
+}

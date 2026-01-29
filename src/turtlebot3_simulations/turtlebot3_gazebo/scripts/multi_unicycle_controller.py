@@ -495,13 +495,22 @@ class MultiUnicycleController(Node):
                     robot.trajectory_y.append(robot.y)
                     robot.trajectory_theta.append(robot.theta)
             
-            # Log neighbor distances
+            # Log neighbor distances and print distance errors
             if self.is_ready():
                 positions = self.get_all_xy_array()  # Shape (num_robots, 2)
                 pairs = self.get_connected_pairs()
+                
+                error_msgs = []
                 for edge_idx, (i, j) in enumerate(pairs):
                     dist = np.linalg.norm(positions[i] - positions[j])
                     self.distance_log[edge_idx].append(dist)
+                    
+                    # Calculate distance error (current - desired)
+                    error = dist - self.desired_distances[edge_idx]
+                    error_msgs.append(f"e{edge_idx+1}={error:+.3f}")
+                
+                # Log distance errors to terminal
+                self.get_logger().info(f"t={current_time:.1f}s | Distance errors: {' | '.join(error_msgs)}")
             
             self.last_log_time = current_time
 
@@ -633,7 +642,7 @@ class MultiUnicycleController(Node):
 
 
         for i in range(self.num_robots):
-            v_uni[i] = 2.5 * (d_dt[2*i] * cos(theta_current[i]) + d_dt[2*i+1] * sin(theta_current[i]))
+            v_uni[i] = 2 * (d_dt[2*i] * cos(theta_current[i]) + d_dt[2*i+1] * sin(theta_current[i]))
 
         for i in range(self.num_robots):
             w_uni[i] = -d_dt[2*i] * sin(theta_current[i]) / self.length + d_dt[2*i+1] * cos(theta_current[i]) / self.length
