@@ -2,6 +2,7 @@
 build/
 install/
 log/
+plots/
 
 # IDE
 .vscode/
