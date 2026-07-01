@@ -1,0 +1,46 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Motivation and Problem Statement}{2}{section.1}\protected@file@percent }
+\newlabel{sec:motivation}{{1}{2}{Motivation and Problem Statement}{section.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}System Model}{2}{section.2}\protected@file@percent }
+\newlabel{sec:model}{{2}{2}{System Model}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Unicycle Kinematics (Process Model)}{2}{subsection.2.1}\protected@file@percent }
+\newlabel{eq:unicycle}{{1}{2}{Unicycle Kinematics (Process Model)}{equation.2.1}{}}
+\newlabel{eq:process}{{2}{2}{Unicycle Kinematics (Process Model)}{equation.2.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Measurement Model (Overhead ArUco Camera)}{3}{subsection.2.2}\protected@file@percent }
+\newlabel{eq:measurement}{{3}{3}{Measurement Model (Overhead ArUco Camera)}{equation.2.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Extended Kalman Filter — Step-by-Step Derivation}{3}{section.3}\protected@file@percent }
+\newlabel{sec:ekf}{{3}{3}{Extended Kalman Filter — Step-by-Step Derivation}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Step~1: Prediction (Runs Every Control Cycle)}{3}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{State prediction:}{3}{section*.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Jacobian of the process model:}{3}{section*.3}\protected@file@percent }
+\newlabel{eq:F}{{5}{3}{Jacobian of the process model:}{equation.3.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Covariance prediction:}{3}{section*.4}\protected@file@percent }
+\newlabel{eq:Ppred}{{6}{3}{Covariance prediction:}{equation.3.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Step~2: Measurement Update (Only When Marker Detected)}{3}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Innovation (measurement residual):}{4}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Innovation covariance:}{4}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Mahalanobis outlier gate (fixes Problem~2):}{4}{section*.7}\protected@file@percent }
+\newlabel{eq:gate}{{9}{4}{Mahalanobis outlier gate (fixes Problem~2):}{equation.3.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{Kalman gain:}{4}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{State update:}{4}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Covariance update (Joseph form, numerically stable):}{4}{section*.10}\protected@file@percent }
+\newlabel{eq:Joseph}{{12}{4}{Covariance update (Joseph form, numerically stable):}{equation.3.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Convergence Detector (Problem 3)}{4}{section.4}\protected@file@percent }
+\newlabel{sec:convergence}{{4}{4}{Convergence Detector (Problem 3)}{section.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Integration with the Double-Angle CBF}{5}{section.5}\protected@file@percent }
+\newlabel{sec:integration}{{5}{5}{Integration with the Double-Angle CBF}{section.5}{}}
+\newlabel{eq:vi}{{14}{5}{Integration with the Double-Angle CBF}{equation.5.14}{}}
+\newlabel{eq:oi}{{15}{5}{Integration with the Double-Angle CBF}{equation.5.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Data Flow and Architecture}{5}{section.6}\protected@file@percent }
+\newlabel{sec:arch}{{6}{5}{Data Flow and Architecture}{section.6}{}}
+\gdef \@abspage@last{5}
+tsline {section}{\numberline {7}Noise Parameter Tuning}{6}{section.7}\protected@file@percent }
+\newlabel{sec:tuning}{{7}{6}{Noise Parameter Tuning}{section.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}How to Run}{6}{section.8}\protected@file@percent }
+\newlabel{sec:run}{{8}{6}{How to Run}{section.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Summary of Fixes}{7}{section.9}\protected@file@percent }
+\newlabel{sec:summary}{{9}{7}{Summary of Fixes}{section.9}{}}
+\gdef \@abspage@last{7}

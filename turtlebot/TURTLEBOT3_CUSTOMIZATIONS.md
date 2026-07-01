@@ -1,0 +1,706 @@
+# TurtleBot3 Customizations Documentation
+
+This document maintains all customizations made to the TurtleBot3 simulation and configuration files in this workspace.
+
+## Table of Contents
+- [Launch File Structure](#launch-file-structure)
+- [Sensor Modifications](#sensor-modifications)
+- [Performance Optimizations](#performance-optimizations)
+- [Multi-Robot Deployment](#multi-robot-deployment)
+- [Files Modified](#files-modified)
+
+---
+
+## Launch File Structure
+
+### Basic TurtleBot3 Launch File Components
+
+TurtleBot3 launch files follow a standard ROS2 launch structure. Here are the core components:
+
+#### 1. Essential Imports
+```python
+import os
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, GroupAction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node, PushRosNamespace
+```
+
+#### 2. Core Function Structure
+```python
+def generate_launch_description():
+    # Environment variables
+    TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']  # burger, waffle, waffle_pi
+    
+    # Launch configurations (parameters)
+    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    x_pose = LaunchConfiguration('x_pose', default='0.0')
+    y_pose = LaunchConfiguration('y_pose', default='0.0')
+    
+    # Package directories
+    launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
+    pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
+    
+    # Component definitions...
+    
+    # Launch description assembly
+    ld = LaunchDescription()
+    ld.add_action(component1)
+    ld.add_action(component2)
+    return ld
+```
+
+#### 3. Standard Components
+
+**Gazebo Server & Client:**
+```python
+gzserver_cmd = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(
+        os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')
+    ),
+    launch_arguments={'world': world_path}.items()
+)
+
+gzclient_cmd = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(
+        os.path.join(pkg_gazebo_ros, 'launch', 'gzclient.launch.py')
+    )
+)
+```
+
+**Robot State Publisher:**
+```python
+robot_state_publisher_cmd = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(
+        os.path.join(launch_file_dir, 'robot_state_publisher.launch.py')
+    ),
+    launch_arguments={'use_sim_time': use_sim_time}.items()
+)
+```
+
+**Robot Spawning:**
+```python
+spawn_turtlebot_cmd = Node(
+    package='gazebo_ros',
+    executable='spawn_entity.py',
+    arguments=[
+        '-entity', robot_name,
+        '-file', urdf_path,
+        '-x', x_pose,
+        '-y', y_pose,
+        '-z', '0.01'
+    ],
+    output='screen',
+)
+```
+
+#### 4. Multi-Robot Specific Patterns
+
+**Namespace Management:**
+- Use `GroupAction` with `PushRosNamespace` for isolated robot control
+- Modify SDF files dynamically for frame naming
+- Handle odometry and scan frame prefixes
+
+**Dynamic SDF Modification:**
+```python
+import xml.etree.ElementTree as ET
+
+tree = ET.parse(urdf_path)
+root = tree.getroot()
+for odom_frame_tag in root.iter('odometry_frame'):
+    odom_frame_tag.text = f'{namespace}_{robot_id}/odom'
+```
+
+---
+
+## Sensor Modifications
+
+### Lidar Scanner Disabled
+**Date:** January 13, 2026  
+**Performance Impact:** FPS improved from 29 to 62 in Gazebo simulation  
+**Reason:** Significant performance improvement for applications that don't require lidar data  
+
+#### What was changed:
+The lidar sensor (LDS - Laser Distance Sensor) has been disabled in the TurtleBot3 Burger model.
+
+#### How to disable/enable:
+In `/src/turtlebot3_simulations/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf`, locate the sensor configuration:
+
+```xml
+<sensor name="hls_lfcd_lds" type="ray">
+  <always_on>false</always_on>        <!-- Set to 'true' to enable -->
+  <visualize>false</visualize>        <!-- Set to 'true' to show rays -->
+  <pose>-0.032 0 0.171 0 0 0</pose>
+  <update_rate>5</update_rate>
+  <!-- ... rest of sensor config ... -->
+</sensor>
+```
+
+**To enable lidar:**
+- Change `<always_on>false</always_on>` to `<always_on>true</always_on>`
+- Change `<visualize>false</visualize>` to `<visualize>true</visualize>` (optional, for ray visualization)
+
+**To disable lidar:**
+- Set `<always_on>false</always_on>`
+- Set `<visualize>false</visualize>`
+
+#### Benefits of this approach:
+- ✅ Clean and reversible (no commenting/uncommenting code blocks)
+- ✅ Maintains model structure integrity
+- ✅ Standard Gazebo sensor management practice
+- ✅ Significant performance improvement (2x FPS increase observed)
+
+---
+
+## Performance Optimizations
+
+### Gazebo Simulation Performance
+- **Lidar disabled:** +113% FPS increase (29 → 62 FPS)
+- **Impact:** Real-time factor improved significantly
+- **Use case:** Suitable for navigation testing without lidar dependency
+
+---
+
+## Files Modified
+
+### Core Model Files
+1. **`/src/turtlebot3_simulations/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf`**
+   - Modified sensor parameters: `always_on` and `visualize`
+   - Line ~141-142: Changed lidar sensor activation flags
+
+### URDF Files (No changes needed)
+- **`/src/turtlebot3/turtlebot3_description/urdf/turtlebot3_burger.urdf`**
+   - No modifications required (URDF link structure preserved)
+   - Sensor behavior controlled via SDF model file
+
+---
+
+## Usage Notes
+
+### When to use this configuration:
+- Development and testing scenarios where lidar is not required
+- Performance-critical applications
+- Learning ROS2 navigation with alternative sensors
+- Gazebo simulations on lower-end hardware
+
+### When to re-enable lidar:
+- SLAM (Simultaneous Localization and Mapping) applications
+- Autonomous navigation requiring obstacle detection
+- Sensor fusion projects
+- Real-world deployment preparation
+
+### Verification Commands:
+```bash
+# Check if lidar topic is active
+ros2 topic list | grep scan
+
+# Monitor Gazebo performance
+# Check FPS in Gazebo GUI status bar
+
+# Launch simulation
+ros2 launch turtlebot3_gazebo empty_world.launch.py
+```
+
+---
+
+## Multi-Robot Deployment ✅
+
+### Working Solutions:
+1. **Original multi_robot.launch.py**: Works perfectly for 4 robots
+   ```bash
+   ros2 launch turtlebot3_gazebo multi_robot.launch.py
+   ```
+
+2. **Custom spawn_4_bots.launch.py**: Simplified version with yaw control
+   ```bash
+   ros2 launch turtlebot3_gazebo spawn_4_bots.launch.py
+   ```
+
+3. **spawn_4_bots_aruco.launch.py**: Multi-robot with colored identification markers
+   ```bash
+   ros2 launch turtlebot3_gazebo spawn_4_bots_aruco.launch.py
+   ```
+
+---
+
+## Robot Identification Markers ✅
+
+### Overview
+Each robot has an **ArUco marker texture** placed on top for visual identification in Gazebo. Markers are dynamically added to the SDF model at launch time using Ogre material scripts.
+
+### Marker Types:
+
+#### ArUco Texture Markers (Default)
+| Robot | Namespace | Texture File | Material Name |
+|-------|-----------|--------------|---------------|
+| Robot 1 | tb3_1 | agent_0.png | Aruco/Marker0 |
+| Robot 2 | tb3_2 | agent_1.png | Aruco/Marker1 |
+| Robot 3 | tb3_3 | agent_2.png | Aruco/Marker2 |
+| Robot 4 | tb3_4 | agent_3.png | Aruco/Marker3 |
+
+#### Color Markers (Fallback)
+| Robot | Namespace | Marker Color | RGB Values |
+|-------|-----------|--------------|------------|
+| Robot 1 | tb3_1 | Red | (1.0, 0.0, 0.0) |
+| Robot 2 | tb3_2 | Green | (0.0, 1.0, 0.0) |
+| Robot 3 | tb3_3 | Blue | (0.0, 0.0, 1.0) |
+| Robot 4 | tb3_4 | Yellow | (1.0, 1.0, 0.0) |
+
+### Marker Configuration:
+- **Position (relative to base_link):** `-0.03 0 0.190` (x, y, z in meters)
+  - X: -0.03m (slightly behind center, aligned with robot body)
+  - Y: 0m (centered)
+  - Z: 0.190m (just above the LiDAR sensor)
+- **Size:** 0.08m × 0.08m × 0.001m (8cm square, 1mm thick flat marker)
+- **Attachment:** Fixed joint to `base_link`
+
+### ArUco Material Installation (Required):
+ArUco textures must be installed to Gazebo's system-wide media path. Use the provided installation script:
+
+```bash
+# Run from ros2_ws root directory (one-time setup)
+./install_aruco_materials.sh
+```
+
+This script automatically:
+- Copies `aruco.material` to `/usr/share/gazebo-11/media/materials/scripts/`
+- Copies `agent_*.png` textures to `/usr/share/gazebo-11/media/materials/textures/`
+- Sets correct permissions (chmod 644) so Gazebo can read them
+
+**Manual installation (if needed):**
+```bash
+sudo cp src/turtlebot3/turtlebot3_description/media/materials/scripts/aruco.material /usr/share/gazebo-11/media/materials/scripts/
+sudo cp src/turtlebot3/turtlebot3_description/media/materials/textures/agent_*.png /usr/share/gazebo-11/media/materials/textures/
+sudo chmod 644 /usr/share/gazebo-11/media/materials/scripts/aruco.material
+sudo chmod 644 /usr/share/gazebo-11/media/materials/textures/agent_*.png
+```
+
+**Material File Location:** `/usr/share/gazebo-11/media/materials/scripts/aruco.material`
+**Texture Files Location:** `/usr/share/gazebo-11/media/materials/textures/agent_[0-3].png`
+
+### Implementation Details:
+The markers are added via dynamic SDF modification using `xml.etree.ElementTree`:
+
+```python
+# ArUco marker SDF material reference
+material = ET.SubElement(visual, 'material')
+script = ET.SubElement(material, 'script')
+uri = ET.SubElement(script, 'uri')
+uri.text = '__default__'  # Use Gazebo's default media path
+name = ET.SubElement(script, 'name')
+name.text = f'Aruco/Marker{robot_idx}'  # References aruco.material
+
+# Color markers fallback (RGBA)
+ROBOT_COLORS = [
+    (1.0, 0.0, 0.0, 1.0),  # Robot 1: Red
+    (0.0, 1.0, 0.0, 1.0),  # Robot 2: Green
+    (0.0, 0.0, 1.0, 1.0),  # Robot 3: Blue
+    (1.0, 1.0, 0.0, 1.0),  # Robot 4: Yellow
+]
+```
+
+### Why SDF Modification (Not URDF):
+- **URDF Limitation:** URDF files don't contain Gazebo-specific plugins (diff_drive, joint_state, IMU)
+- **SDF Contains:** All required Gazebo plugins for robot functionality
+- **Solution:** Modify the existing SDF file dynamically to add marker visual/joint while preserving all plugins
+
+### Critical Notes:
+⚠️ **DO NOT modify `GAZEBO_RESOURCE_PATH` or `GAZEBO_MODEL_PATH`** in the launch file using `os.environ`. This causes gzclient to crash with "Assertion 'px != 0' failed" error.
+
+✅ **Correct approach:** Install materials to Gazebo's default path (`/usr/share/gazebo-11/media/materials/`) and use `__default__` URI in SDF.
+
+### Ogre Material File Format:
+```ogre
+material Aruco/Marker0
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.5 0.5 0.5 1.0 12.5
+      lighting on
+      texture_unit
+      {
+        texture agent_0.png
+        filtering trilinear  # Use trilinear to avoid pixelation
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+```
+
+### Launch File:
+**File:** [`spawn_4_bots_aruco.launch.py`](src/turtlebot3_simulations/turtlebot3_gazebo/launch/spawn_4_bots_aruco.launch.py)
+
+```bash
+# Launch 4 robots with colored markers
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo spawn_4_bots_aruco.launch.py
+```
+
+---
+
+### Features of Custom Launch File:
+- **Fixed positions**: 4 robots in square formation ([-1,-1], [1,-1], [1,1], [-1,1])
+- **Individual orientations**: Each robot faces different direction (east, north, west, south)
+- **Namespace isolation**: tb3_1, tb3_2, tb3_3, tb3_4
+- **Lidar disabled**: All performance optimizations maintained
+- **Direct spawn control**: Uses spawn_entity.py with `-Y` parameter for yaw
+
+### Yaw Orientation Configuration:
+```python
+# [x, y, yaw] - yaw in radians
+pose = [[-1, -1, 0],      # Robot 1: facing east (→)
+        [1, -1, 1.57],    # Robot 2: facing north (↑) 
+        [1, 1, 3.14],     # Robot 3: facing west (←)
+        [-1, 1, -1.57]]   # Robot 4: facing south (↓)
+```
+
+### spawn_entity.py Location:
+- **Main executable**: `/opt/ros/humble/lib/gazebo_ros/spawn_entity.py`
+- **Package**: `gazebo_ros` (part of ROS2 Humble)
+- **Usage**: Direct spawning with position and orientation control
+- **Key parameters**: `-x`, `-y`, `-z` (position), `-Y` (yaw angle in radians)
+
+---
+
+## Multi-Robot Controller ✅
+
+### Controller Files:
+1. **Main Controller**: [`multi_robot_controller.py`](src/turtlebot3_simulations/turtlebot3_gazebo/scripts/multi_robot_controller.py)
+2. **Example Usage**: [`multi_robot_example.py`](src/turtlebot3_simulations/turtlebot3_gazebo/scripts/multi_robot_example.py)
+
+### Features:
+- **Position Feedback**: Real-time odometry data from all 4 robots
+- **Velocity Control**: Individual robot command velocity publishing  
+- **Formation Control**: Built-in square and circle formation patterns
+- **Status Monitoring**: System-wide status reporting at 1Hz
+- **Emergency Stop**: Stop all robots with single command
+
+### Usage Examples:
+
+#### Basic Controller Setup:
+```python
+from multi_robot_controller import MultiRobotController
+import rclpy
+
+rclpy.init()
+controller = MultiRobotController()
+
+# Individual robot control
+controller.set_robot_velocity('tb3_1', 0.2, 0.0)  # linear, angular
+controller.set_robot_velocity('tb3_2', 0.0, 0.5)  # turn in place
+
+# Get position feedback
+positions = controller.get_all_positions()
+print(f"tb3_1 position: {positions['tb3_1']}")
+
+# Formation control
+controller.control_mode = 'formation'  # square formation
+controller.control_mode = 'circle'     # circle formation
+controller.control_mode = 'manual'     # manual control
+
+# Emergency stop
+controller.stop_all_robots()
+```
+
+#### Running the Controller:
+```bash
+# Terminal 1: Start robots
+ros2 launch turtlebot3_gazebo spawn_4_bots.launch.py
+
+# Terminal 2: Run controller
+cd /home/gaurav/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/scripts/
+python3 multi_robot_controller.py
+
+# Terminal 3: Run examples (optional)
+python3 multi_robot_example.py
+
+# Monitor status
+ros2 topic echo /multi_robot_status
+```
+
+### Available Topics Per Robot:
+- **Command**: `/{robot_name}/cmd_vel` (geometry_msgs/Twist)
+- **Odometry**: `/{robot_name}/odom` (nav_msgs/Odometry)  
+- **Joint States**: `/{robot_name}/joint_states` (sensor_msgs/JointState)
+- **Status**: `/multi_robot_status` (std_msgs/String)
+
+### Controller Modes:
+- `'manual'`: Direct velocity control via API
+- `'formation'`: Automatic square formation maintenance
+- `'circle'`: Circular formation with rotation
+- `'stop'`: Emergency stop all robots
+
+### Position Feedback Structure:
+```python
+robot_data[robot_name] = {
+    'position': {'x': float, 'y': float, 'z': float},
+    'orientation': {'yaw': float},  # radians
+    'velocity': {'linear': float, 'angular': float},
+    'target_velocity': {'linear': float, 'angular': float}
+}
+```
+
+---
+
+## Maintenance Log
+
+| Date & Time | Modification | Author | Notes |
+|-------------|-------------|---------|-------|
+| 2026-01-13 14:30 UTC | Disabled lidar sensor | - | Performance optimization: 29→62 FPS |
+| 2026-01-13 14:45 UTC | Created documentation | - | Initial documentation setup |
+| 2026-01-13 14:47 UTC | Added timestamp tracking | - | Enhanced maintenance log with timestamps |
+| 2026-01-13 15:15 UTC | Added launch file structure guide | - | Comprehensive launch file analysis and multi-robot spawn guide |
+| 2026-01-13 16:31 UTC | Successfully tested multi-robot deployment | - | Original multi_robot.launch.py works with lidar disabled (4 robots spawned) |
+| 2026-01-13 16:45 UTC | Created custom spawn_4_bots.launch.py | - | Simplified multi-robot launch with yaw control using spawn_entity.py |
+| 2026-01-13 17:00 UTC | Created multi-robot controller system | - | Position feedback and velocity control for all 4 robots with formation patterns |
+| 2026-01-18 12:00 UTC | Created unicycle_controller.py | Copilot | Clean template for single TurtleBot unicycle control with global frame position/velocity feedback |
+| 2026-01-18 12:15 UTC | Created multi_unicycle_controller.py | Copilot | Template for 4 independent TurtleBots with parallel unicycle control |
+| 2026-01-18 12:30 UTC | Created circumnavigation_controller.py | Copilot | Implemented MATLAB circumnavigation control law (circum_experimental_multiple_entry.m) |
+| 2026-01-18 13:00 UTC | Added trajectory plotting to circumnavigation_controller.py | Copilot | 4-panel static plot (trajectory, θ, r, ω vs time) and animation capability |
+| 2026-01-18 13:15 UTC | Fixed shutdown error handling | Copilot | Graceful ROS context cleanup to avoid errors on Ctrl+C |
+| 2026-01-22 14:00 UTC | Enhanced multi_unicycle_controller.py plotting | Copilot | Added neighbor connection visualization (dotted for initial, solid for current/final positions) |
+| 2026-01-22 14:30 UTC | Added auto-save plots with timestamps | Copilot | Plots auto-save to ~/ros2_ws/plots/{timestamp}/ on shutdown (trajectory.png, distances.png, combined_animation.gif) |
+| 2026-01-22 15:00 UTC | Created combined animation feature | Copilot | Side-by-side animation (1x2 layout) showing trajectory + distance plots synchronized |
+| 2026-01-29 14:00 UTC | Created spawn_4_bots_aruco.launch.py | Copilot | Multi-robot launch with colored identification markers dynamically added to SDF |
+| 2026-01-29 14:30 UTC | Tuned marker positions | User | Marker position set to `-0.03 0 0.178` (just above LiDAR, centered) |
+| 2026-01-29 15:00 UTC | Implemented ArUco texture markers | Copilot | Added Ogre material script support for PNG textures on markers |
+| 2026-01-29 15:15 UTC | Fixed gzclient crash | Copilot | Root cause: modifying os.environ for GAZEBO paths. Solution: use `__default__` URI |
+| 2026-01-29 15:20 UTC | Fixed texture permissions | Copilot | chmod 644 on texture files - Gazebo couldn't read them (was rw-------) |
+| 2026-01-29 15:25 UTC | Fixed pixelation | Copilot | Changed filtering from 'none' to 'trilinear' in aruco.material |
+| 2026-01-29 16:00 UTC | Added overhead camera model | Copilot | Static camera at 3m height for vision-based feedback |
+| 2026-01-29 16:15 UTC | Created ArUco feedback node | Copilot | Detects markers 0-3, calculates positions and bearings |
+| 2026-01-29 16:30 UTC | Created swarm controller node | Copilot | Unicycle control law with formation support |
+| 2026-01-29 16:45 UTC | Created swarm_vision_control.launch.py | Copilot | Combined launch: robots + camera + vision nodes |
+| 2026-01-29 18:25 UTC | Fixed multi_unicycle_controller.py robot names | Copilot | Changed default from `tb3_1..4` to `bot_0..3` to match launch file |
+| 2026-01-29 18:30 UTC | Updated ArUco marker size to 10cm | Copilot | Changed from 0.08m to 0.10m in launch file, detector, and feedback node |
+| 2026-01-29 18:35 UTC | Updated camera to Intel RealSense D435i specs | Copilot | FOV: 69° (was 60°), near clip: 0.3m, noise: 0.005 |
+
+---
+
+**Last Updated:** January 29, 2026 18:35 UTC  
+**ROS2 Version:** Humble  
+**Gazebo Version:** 11 (Gazebo Classic with Ogre3D rendering)  
+**TurtleBot3 Model:** Burger
+
+---
+
+## Vision-Based Swarm Control System ✅
+
+### Overview
+A complete vision-based feedback system for swarm formation control using:
+- **Overhead camera** for global view of all robots
+- **ArUco marker detection** for robot identification and pose estimation
+- **Bearing-based control law** for formation maintenance
+
+### System Architecture
+
+```
+┌─────────────────────┐     ┌──────────────────────┐
+│   Overhead Camera   │────▶│  ArUco Feedback Node │
+│  (4m above ground)  │     │  (aruco_feedback_node)│
+└─────────────────────┘     └──────────────────────┘
+                                       │
+                              Bearings & Distances
+                                       │
+                                       ▼
+                            ┌──────────────────────┐
+                            │   Swarm Controller   │
+                            │ (swarm_controller_node)│
+                            └──────────────────────┘
+                                       │
+                              cmd_vel per robot
+                                       │
+          ┌────────────────────────────┼────────────────────────────┐
+          ▼                            ▼                            ▼
+    ┌──────────┐                 ┌──────────┐                 ┌──────────┐
+    │  bot_0   │                 │  bot_1   │     ...         │  bot_3   │
+    │ ArUco #0 │                 │ ArUco #1 │                 │ ArUco #3 │
+    └──────────┘                 └──────────┘                 └──────────┘
+```
+
+### Components
+
+#### 1. Overhead Camera Model
+**File:** `models/overhead_camera/model.sdf`
+
+**Intel RealSense D435i RGB Specs (Applied):**
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Resolution | 1920×1080 | Full HD @ 30fps |
+| Horizontal FOV | 69° (1.204 rad) | D435i RGB camera spec |
+| Vertical FOV | ~42° | Calculated from aspect ratio |
+| Min Range | 0.3m | D435i minimum operating range |
+| Max Range | 10.0m | Practical indoor range |
+| Noise (stddev) | 0.005 | Reduced for clarity |
+| Update Rate | 30 Hz | Standard framerate |
+
+**Position:** (2.35, 1.35, 4.0) - centered above formation
+**Orientation:** Pitch=90°, Yaw=90° (looking straight down)
+**Plugin:** `libgazebo_ros_camera.so`
+**Topics:**
+  - `/overhead_cam/image_raw` (sensor_msgs/Image)
+  - `/overhead_cam/camera_info` (sensor_msgs/CameraInfo)
+
+**Coverage at 4m height:**
+- Horizontal: ~5.2m (2 × 4.0 × tan(34.5°))
+- Vertical: ~3.1m
+
+#### 2. ArUco Marker Configuration
+| Parameter | Value |
+|-----------|-------|
+| Dictionary | DICT_4X4_50 |
+| Marker IDs | 0, 1, 2, 3 |
+| Physical Size | **10cm × 10cm** (0.10m) |
+| Thickness | 1mm |
+| Position on Robot | Above LiDAR (-0.03, 0, 0.180) |
+
+#### 3. ArUco Detector (Standalone Script)
+**File:** `scripts/aruco_detector.py`
+
+**Purpose:** Standalone script to visualize marker detection in terminal
+
+**Usage:**
+```bash
+python3 ~/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/scripts/aruco_detector.py
+```
+
+**Output Format:**
+```
+======================================================================
+ArUco Marker Detection - Live Feed
+======================================================================
+
+ID     X (m)        Y (m)        Heading (deg)   Heading (rad)  
+----------------------------------------------------------------------
+0      3.752        0.997        0.0             0.000          
+1      1.010        0.996        -0.3            -0.005         
+2      1.010        1.709        0.3             0.005          
+3      3.749        1.707        -0.2            -0.004         
+----------------------------------------------------------------------
+
+Detected: 4 markers
+```
+
+**Key Features:**
+- BEST_EFFORT QoS for Gazebo camera compatibility
+- Uses `cv2.solvePnP` (newer OpenCV 4.x API)
+- Camera-to-world coordinate transformation
+- Real-time terminal display at 2Hz
+
+#### 4. ArUco Feedback Node
+**File:** `scripts/aruco_feedback_node.py`
+
+**Input:** `/overhead_cam/image_raw`
+
+**Processing:**
+1. Detect ArUco markers (DICT_4X4_50, IDs 0-3)
+2. Estimate 6-DOF pose using `cv2.solvePnP`
+3. Transform camera frame → world frame
+4. Calculate pairwise bearings between all robots
+
+**Output Topics:**
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/swarm/poses` | PoseArray | All robot poses (for visualization) |
+| `/swarm/feedback` | Float32MultiArray | Combined bearing data |
+| `/robot_{id}/neighbors` | Float32MultiArray | Per-robot neighbor data |
+| `/aruco_debug/image` | Image | Annotated debug image |
+
+**Parameters:**
+```yaml
+num_robots: 4
+marker_size: 0.10  # 10cm markers
+camera_height: 4.0
+debug_visualization: true
+```
+
+### Robot Naming Convention
+
+**IMPORTANT:** The swarm_vision_control.launch.py uses:
+| Robot | Namespace | ArUco ID | Spawn Position |
+|-------|-----------|----------|----------------|
+| Robot 0 | `bot_0` | 0 | (1.5, 1.0) |
+| Robot 1 | `bot_1` | 1 | (3.0, 1.0) |
+| Robot 2 | `bot_2` | 2 | (1.5, 2.5) |
+| Robot 3 | `bot_3` | 3 | (3.0, 2.5) |
+
+**Topics per robot:**
+- `/bot_0/cmd_vel`, `/bot_0/odom`
+- `/bot_1/cmd_vel`, `/bot_1/odom`
+- `/bot_2/cmd_vel`, `/bot_2/odom`
+- `/bot_3/cmd_vel`, `/bot_3/odom`
+
+### Launch File
+**File:** `launch/swarm_vision_control.launch.py`
+
+**Usage:**
+```bash
+# Basic launch (detection only, no controller)
+ros2 launch turtlebot3_gazebo swarm_vision_control.launch.py
+
+# With swarm controller enabled
+ros2 launch turtlebot3_gazebo swarm_vision_control.launch.py enable_controller:=true
+```
+
+### Debugging
+
+**View camera feed:**
+```bash
+ros2 run rqt_image_view rqt_image_view /overhead_cam/image_raw
+```
+
+**View debug image with marker detection:**
+```bash
+ros2 run rqt_image_view rqt_image_view /aruco_debug/image
+```
+
+**Run standalone detector:**
+```bash
+python3 ~/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/scripts/aruco_detector.py
+```
+
+**Run multi_unicycle_controller (now compatible):**
+```bash
+python3 ~/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/scripts/multi_unicycle_controller.py
+```
+
+### Current Status (2026-01-29)
+
+✅ **Working:**
+- Overhead camera with Intel RealSense D435i specs
+- ArUco marker detection (4 markers, 10cm size)
+- Standalone detector showing X, Y, heading in terminal
+- All 4 robots spawning with correct namespaces (bot_0..3)
+- Camera coverage sufficient for formation area
+
+⚠️ **Known Issues:**
+- Occasional marker detection dropout (3/4 markers visible sometimes)
+- Slight heading jitter (±2-3 degrees) due to marker orientation estimation
+
+---
+
+## How to Update This Documentation
+
+When making changes to TurtleBot3 configurations:
+
+1. **Document the change** in the appropriate section above
+2. **Add an entry** to the Maintenance Log with:
+   - Current date and time (UTC format: YYYY-MM-DD HH:MM UTC)
+   - Brief description of modification
+   - Author/contributor name
+   - Impact notes or reasoning
+3. **Update the "Last Updated" timestamp** at the bottom
+4. **Commit changes** to version control with descriptive message
+
+### Template for new entries:
+```markdown
+| YYYY-MM-DD HH:MM UTC | Brief description | Your Name | Impact/Notes |
+```

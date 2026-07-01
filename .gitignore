@@ -1,21 +1,25 @@
-# ROS2 build artifacts
+# ROS 2 Workspaces
 build/
 install/
 log/
-plots/
-
-# IDE
-.vscode/
-.obsidian/
-*.code-workspace
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
-*.egg-info/
-.eggs/
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.venv
+.env
 
-# OS
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
-Thumbs.db

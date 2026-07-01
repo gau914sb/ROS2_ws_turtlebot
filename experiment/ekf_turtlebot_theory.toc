@@ -1,0 +1,22 @@
+\contentsline {section}{\numberline {1}Motivation and Problem Statement}{2}{section.1}%
+\contentsline {section}{\numberline {2}System Model}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Unicycle Kinematics (Process Model)}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Measurement Model (Overhead ArUco Camera)}{3}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Extended Kalman Filter --- Step-by-Step Derivation}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Step~1: Prediction (Runs Every Control Cycle)}{3}{subsection.3.1}%
+\contentsline {paragraph}{State prediction:}{3}{section*.2}%
+\contentsline {paragraph}{Jacobian of the process model:}{3}{section*.3}%
+\contentsline {paragraph}{Covariance prediction:}{3}{section*.4}%
+\contentsline {subsection}{\numberline {3.2}Step~2: Measurement Update (Only When Marker Detected)}{3}{subsection.3.2}%
+\contentsline {paragraph}{Innovation (measurement residual):}{4}{section*.5}%
+\contentsline {paragraph}{Innovation covariance:}{4}{section*.6}%
+\contentsline {paragraph}{Mahalanobis outlier gate (fixes Problem~2):}{4}{section*.7}%
+\contentsline {paragraph}{Kalman gain:}{4}{section*.8}%
+\contentsline {paragraph}{State update:}{4}{section*.9}%
+\contentsline {paragraph}{Covariance update (Joseph form, numerically stable):}{4}{section*.10}%
+\contentsline {section}{\numberline {4}Convergence Detector (Problem 3)}{4}{section.4}%
+\contentsline {section}{\numberline {5}Integration with the Double-Angle CBF}{5}{section.5}%
+\contentsline {section}{\numberline {6}Data Flow and Architecture}{5}{section.6}%
+\contentsline {section}{\numberline {7}Noise Parameter Tuning}{6}{section.7}%
+\contentsline {section}{\numberline {8}How to Run}{6}{section.8}%
+\contentsline {section}{\numberline {9}Summary of Fixes}{7}{section.9}%

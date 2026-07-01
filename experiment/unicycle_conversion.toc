@@ -1,0 +1,15 @@
+\contentsline {section}{\numberline {1}Overview}{1}{section.1}%
+\contentsline {section}{\numberline {2}Unicycle Kinematic Model}{2}{section.2}%
+\contentsline {section}{\numberline {3}Look-Ahead Point Construction}{2}{section.3}%
+\contentsline {section}{\numberline {4}Inversion: Unicycle Commands from Single-Integrator Velocity}{2}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Invertibility}{2}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Closed-Form Inverse}{3}{subsection.4.2}%
+\contentsline {section}{\numberline {5}Implementation in Code}{3}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Linear velocity gain}{3}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Angular velocity}{3}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Compact matrix form}{3}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Velocity saturation}{3}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Signal Flow Diagram}{3}{section.6}%
+\contentsline {section}{\numberline {7}Parameter Summary}{3}{section.7}%
+\contentsline {section}{\numberline {8}Geometric Interpretation}{3}{section.8}%
+\contentsline {section}{\numberline {9}Complete Conversion — Step by Step}{4}{section.9}%

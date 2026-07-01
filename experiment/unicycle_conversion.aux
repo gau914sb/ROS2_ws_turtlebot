@@ -1,0 +1,57 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Overview}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Unicycle Kinematic Model}{2}{section.2}\protected@file@percent }
+\newlabel{eq:unicycle}{{1}{2}{Unicycle Kinematic Model}{equation.2.1}{}}
+\newlabel{eq:unicycle@cref}{{[equation][1][]1}{[1][1][]2}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Unicycle robot with centre~$(x_i,y_i)$, heading~$\theta _i$, linear speed~$v_i$, angular speed~$\omega _i$, and look-ahead point~$\mathbf  {a}_i$ at distance~$l$ along the heading axis. The single-integrator velocity~$\dot  {p}_{i}$ is prescribed at $\mathbf  {a}_i$.}}{2}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:unicycle}{{1}{2}{Unicycle robot with centre~$(x_i,y_i)$, heading~$\theta _i$, linear speed~$v_i$, angular speed~$\omega _i$, and look-ahead point~$\mathbf {a}_i$ at distance~$l$ along the heading axis. The single-integrator velocity~$\dpdt {i}$ is prescribed at $\mathbf {a}_i$}{figure.caption.2}{}}
+\newlabel{fig:unicycle@cref}{{[figure][1][]1}{[1][2][]2}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Look-Ahead Point Construction}{2}{section.3}\protected@file@percent }
+\newlabel{eq:lookahead_pos}{{2}{2}{Look-Ahead Point Construction}{equation.3.2}{}}
+\newlabel{eq:lookahead_pos@cref}{{[equation][2][]2}{[1][2][]2}}
+\newlabel{eq:adot_x}{{3}{2}{Look-Ahead Point Construction}{equation.3.3}{}}
+\newlabel{eq:adot_x@cref}{{[equation][3][]3}{[1][2][]2}}
+\newlabel{eq:adot_y}{{4}{2}{Look-Ahead Point Construction}{equation.3.4}{}}
+\newlabel{eq:adot_y@cref}{{[equation][4][]4}{[1][2][]2}}
+\newlabel{eq:forward}{{5}{2}{Look-Ahead Point Construction}{equation.3.5}{}}
+\newlabel{eq:forward@cref}{{[equation][5][]5}{[1][2][]2}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Inversion: Unicycle Commands from Single-Integrator Velocity}{2}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Invertibility}{2}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Closed-Form Inverse}{3}{subsection.4.2}\protected@file@percent }
+\newlabel{eq:Minv}{{7}{3}{Closed-Form Inverse}{equation.4.7}{}}
+\newlabel{eq:Minv@cref}{{[equation][7][]7}{[1][2][]3}}
+\newlabel{eq:exact_conversion}{{8}{3}{Closed-Form Inverse}{equation.4.8}{}}
+\newlabel{eq:exact_conversion@cref}{{[equation][8][]8}{[1][2][]3}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Implementation in Code}{3}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Linear velocity gain}{3}{subsection.5.1}\protected@file@percent }
+\newlabel{eq:impl_v}{{9}{3}{Linear velocity gain}{equation.5.9}{}}
+\newlabel{eq:impl_v@cref}{{[equation][9][]9}{[1][3][]3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Angular velocity}{3}{subsection.5.2}\protected@file@percent }
+\newlabel{eq:impl_w}{{10}{3}{Angular velocity}{equation.5.10}{}}
+\newlabel{eq:impl_w@cref}{{[equation][10][]10}{[1][3][]3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Compact matrix form}{3}{subsection.5.3}\protected@file@percent }
+\newlabel{eq:T}{{11}{3}{Compact matrix form}{equation.5.11}{}}
+\newlabel{eq:T@cref}{{[equation][11][]11}{[1][3][]3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Velocity saturation}{3}{subsection.5.4}\protected@file@percent }
+\newlabel{eq:sat_v}{{12}{3}{Velocity saturation}{equation.5.12}{}}
+\newlabel{eq:sat_v@cref}{{[equation][12][]12}{[1][3][]3}}
+\newlabel{eq:sat_w}{{13}{3}{Velocity saturation}{equation.5.13}{}}
+\newlabel{eq:sat_w@cref}{{[equation][13][]13}{[1][3][]3}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Signal Flow Diagram}{3}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Parameter Summary}{3}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Geometric Interpretation}{3}{section.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Signal flow for robot~$i$. The CBF law outputs a single-integrator velocity~$\dot  {p}_{i}$; the look-ahead transformation~$T(\theta _i)$ converts it to unicycle commands; saturation enforces actuator limits; the robot executes $(v_i,\omega _i)$. The heading~$\theta _i$ is fed back from the ArUco TF2 measurement.}}{4}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:flow}{{2}{4}{Signal flow for robot~$i$. The CBF law outputs a single-integrator velocity~$\dpdt {i}$; the look-ahead transformation~$T(\theta _i)$ converts it to unicycle commands; saturation enforces actuator limits; the robot executes $(v_i,\omega _i)$. The heading~$\theta _i$ is fed back from the ArUco TF2 measurement}{figure.caption.3}{}}
+\newlabel{fig:flow@cref}{{[figure][2][]2}{[1][3][]4}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Parameters used in the unicycle conversion.}}{4}{table.caption.4}\protected@file@percent }
+\newlabel{tab:params}{{1}{4}{Parameters used in the unicycle conversion}{table.caption.4}{}}
+\newlabel{tab:params@cref}{{[table][1][]1}{[1][3][]4}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Complete Conversion — Step by Step}{4}{section.9}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Geometric decomposition of~$\dot  {p}_{i}$ at the look-ahead point~$\mathbf  {a}_i$ (heading $\theta _i=30^\circ $, example). The \textcolor {green!60!black}{green} component (parallel to heading) drives forward speed~$v_i$. The \textcolor {orange!80!black}{orange} component (perpendicular to heading), divided by~$l$, drives angular speed~$\omega _i$.}}{5}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:geom}{{3}{5}{Geometric decomposition of~$\dpdt {i}$ at the look-ahead point~$\mathbf {a}_i$ (heading $\theta _i=30^\circ $, example). The \textcolor {green!60!black}{green} component (parallel to heading) drives forward speed~$v_i$. The \textcolor {orange!80!black}{orange} component (perpendicular to heading), divided by~$l$, drives angular speed~$\omega _i$}{figure.caption.5}{}}
+\newlabel{fig:geom@cref}{{[figure][3][]3}{[1][3][]5}}
+\gdef \@abspage@last{5}
