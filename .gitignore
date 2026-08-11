@@ -15,6 +15,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 .venv
 .env
+experiment/recordings
 
 # Editor / OS
 .vscode/

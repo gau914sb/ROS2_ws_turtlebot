@@ -87,11 +87,11 @@ from aruco_opencv_msgs.msg import ArucoDetection
 
 
 # ─── tuneable defaults ────────────────────────────────────────────────────────
-TARGET_MARKER_ID = 3
-CENTER_X         = 0.0      # user-specified centre X (m)
-CENTER_Y         = 0.0      # user-specified centre Y (m)
-USE_DYNAMIC_CENTER = False  # if True, compute centre from initial position
-RADIUS           = 0.3      # metres
+TARGET_MARKER_ID = 0
+CENTER_X         = -0.645     # user-specified centre X (m)
+CENTER_Y         = -0.225   # user-specified centre Y (m)
+USE_DYNAMIC_CENTER = True  # if True, compute centre from initial position
+RADIUS           = 0.8      # metres
 SPEED            = 0.08     # m/s along the circle
 K_ANGULAR        = 2.0      # proportional heading gain  (rad/s / rad)
 OMEGA_MAX        = 2.0      # rad/s
@@ -148,14 +148,10 @@ class CircleArucoController(Node):
         self.declare_parameter('tf_timeout',       TF_TIMEOUT)
 
         self.target_marker_id = self.get_parameter('target_marker_id').value
-        
-        # Forcing the use of the global variables directly to ensure changes take effect immediately
-        # (Bypassing ROS 2 parameter server caching)
-        self.cx_param         = CENTER_X
-        self.cy_param         = CENTER_Y
-        self.use_dynamic_center = USE_DYNAMIC_CENTER
-        self.radius           = RADIUS
-        
+        self.cx_param         = float(self.get_parameter('center_x').value)
+        self.cy_param         = float(self.get_parameter('center_y').value)
+        self.use_dynamic_center = self.get_parameter('use_dynamic_center').value
+        self.radius           = float(self.get_parameter('radius').value)
         self.speed            = float(self.get_parameter('speed').value)
         self.k_angular        = float(self.get_parameter('k_angular').value)
         self.omega_max        = float(self.get_parameter('omega_max').value)
@@ -227,7 +223,6 @@ class CircleArucoController(Node):
             f'  Marker ID   : {self.target_marker_id}  (TF: "{self.marker_tf_frame}")\n'
             f'  World frame : "{self.world_frame}"\n'
             f'  Radius      : {self.radius:.3f} m\n'
-            f'  Center      : ({self.cx_param:.3f}, {self.cy_param:.3f}) [Dynamic: {self.use_dynamic_center}]\n'
             f'  Speed       : {self.speed:.3f} m/s\n'
             f'  K_angular   : {self.k_angular:.2f}  |  ω_max: {self.omega_max:.2f} rad/s\n'
             f'  Direction   : {direction.upper()}  (dir_sign={self.dir_sign:+.0f})\n'
@@ -517,13 +512,7 @@ class CircleArucoController(Node):
                 self.cy + self.radius * np.sin(theta_ideal),
                 '--', color='lightgray', linewidth=1.5, label='Ideal circle'
             )
-            # Highlight the center of the circle explicitly
-            ax.plot(self.cx, self.cy, 'r*', markersize=20, label=f'Center ({self.cx:.2f}, {self.cy:.2f})')
-            ax.annotate(f'Center\n({self.cx:.2f}, {self.cy:.2f})', 
-                        xy=(self.cx, self.cy), xytext=(self.cx + 0.1, self.cy + 0.1),
-                        arrowprops=dict(facecolor='red', shrink=0.05, width=1.5, headwidth=6),
-                        fontsize=10, color='red', fontweight='bold',
-                        bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.8))
+            ax.plot(self.cx, self.cy, 'k+', markersize=12, label='Centre')
 
         # Actual path (coloured by time)
         sc = ax.scatter(xs, ys, c=self.traj_t, cmap='plasma',

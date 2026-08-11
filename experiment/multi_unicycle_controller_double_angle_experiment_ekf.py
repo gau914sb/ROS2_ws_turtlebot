@@ -31,11 +31,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+import math
 from math import sin, cos, atan2, sqrt, pi, acos, asin, degrees, radians
 import numpy as np
 import tf2_ros
 from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 from geometry_msgs.msg import TwistStamped
+from sensor_msgs.msg import CompressedImage
 from aruco_opencv_msgs.msg import ArucoDetection
 from typing import Dict, List, Tuple, Optional
 import matplotlib.pyplot as plt
@@ -43,6 +45,7 @@ from matplotlib.animation import FuncAnimation
 import time
 from datetime import datetime
 import os
+import cv2
 from scipy.linalg import block_diag
 
 # =============================================================================
@@ -64,143 +67,72 @@ TF_TIMEOUT    = 0.05              # seconds to wait for each TF lookup
 # =============================================================================
 # EKF NOISE PARAMETERS  (tune these to match your camera / robot)
 # =============================================================================
-EKF_Q_XY         = 0.001   # process noise variance  – position (m²)
-EKF_Q_THETA      = 0.002   # process noise variance  – heading  (rad²)
-EKF_R_XY         = 0.004   # measurement noise variance – position (m²)
-EKF_R_THETA      = 0.008   # measurement noise variance – heading  (rad²)
-EKF_GATE_CHI2    = 11.34   # Mahalanobis gate threshold (χ²₃ at 99 %)
+# EKF noise tuning
+# Q: process noise — how much we trust the kinematic model (smaller = trust model more)
+# R: measurement noise — how much we trust the camera (larger = trust camera less = more smoothing)
+# To actually filter camera jitter: Q << R
+Q_XY    = 0.001   # kinematic model is fairly smooth between frames
+Q_THETA = 0.002
+R_XY    = 0.05    # camera has positional jitter (marker wobble etc.)
+R_THETA = 0.1     # heading from ArUco is noisier than position
+GATE_THRESHOLD = 11.34  # chi-squared at 99% for 3 DOF — rejects true outlier spikes only
 
-
-# =============================================================================
-# EXTENDED KALMAN FILTER  — one instance per robot
-# =============================================================================
 class RobotEKF:
-    """
-    EKF for a single unicycle robot.
-
-    State   : x = [x, y, θ]ᵀ
-    Input   : u = [v, ω]ᵀ  (last commanded velocity)
-    Measure : z = [x_m, y_m, θ_m]ᵀ  (ArUco TF)
-
-    Process model (Euler, dt seconds):
-        x_{k+1} = x_k + v·cos(θ)·dt
-        y_{k+1} = y_k + v·sin(θ)·dt
-        θ_{k+1} = θ_k + ω·dt
-
-    Jacobian F = ∂f/∂x:
-        [1  0  -v·sin(θ)·dt]
-        [0  1   v·cos(θ)·dt]
-        [0  0        1      ]
-
-    Measurement model: h(x) = x  (identity – ArUco directly gives state)
-    Jacobian H = I₃
-    """
-
-    def __init__(self):
-        # State mean  [x, y, θ]
-        self.x_est = np.zeros(3)
-
-        # State covariance – start very uncertain
+    def __init__(self, name: str, x0: float = 0.0, y0: float = 0.0, theta0: float = 0.0):
+        self.name = name
+        self.x_est = np.array([x0, y0, theta0], dtype=float)
         self.P = np.diag([1.0, 1.0, 0.5])
-
-        # Process noise covariance Q
-        self.Q = np.diag([EKF_Q_XY, EKF_Q_XY, EKF_Q_THETA])
-
-        # Measurement noise covariance R
-        self.R = np.diag([EKF_R_XY, EKF_R_XY, EKF_R_THETA])
-
-        # Last commanded control inputs (fed back from set_velocity)
-        self.last_v     = 0.0
+        self.Q = np.diag([Q_XY, Q_XY, Q_THETA])
+        self.R = np.diag([R_XY, R_XY, R_THETA])
+        self.last_v = 0.0
         self.last_omega = 0.0
-
-        # Flag: EKF is only valid after first measurement initialises it
         self.initialized = False
 
-    # ------------------------------------------------------------------
     def initialize(self, x: float, y: float, theta: float):
-        """Bootstrap the filter from the first ArUco measurement."""
-        self.x_est       = np.array([x, y, theta])
-        self.P           = np.diag([0.01, 0.01, 0.01])   # tight initial covariance
+        self.x_est = np.array([x, y, theta], dtype=float)
+        self.P = np.diag([0.01, 0.01, 0.01])
         self.initialized = True
 
-    # ------------------------------------------------------------------
     def predict(self, dt: float):
-        """
-        EKF prediction step – unicycle kinematics.
-        Runs at 50 Hz even when the marker is not visible.
-        """
-        if not self.initialized:
-            return
-
+        if not self.initialized: return
         x, y, theta = self.x_est
-        v, omega    = self.last_v, self.last_omega
-
-        # --- State prediction f(x, u) ---
-        self.x_est[0] = x + v * cos(theta) * dt
-        self.x_est[1] = y + v * sin(theta) * dt
+        v, omega = self.last_v, self.last_omega
+        self.x_est[0] = x + v * math.cos(theta) * dt
+        self.x_est[1] = y + v * math.sin(theta) * dt
         self.x_est[2] = self._wrap(theta + omega * dt)
-
-        # --- Jacobian F = ∂f/∂x ---
         F = np.array([
-            [1.0, 0.0, -v * sin(theta) * dt],
-            [0.0, 1.0,  v * cos(theta) * dt],
+            [1.0, 0.0, -v * math.sin(theta) * dt],
+            [0.0, 1.0,  v * math.cos(theta) * dt],
             [0.0, 0.0,  1.0               ],
         ])
-
-        # --- Covariance prediction ---
         self.P = F @ self.P @ F.T + self.Q
 
-    # ------------------------------------------------------------------
     def update(self, z_x: float, z_y: float, z_theta: float) -> bool:
-        """
-        EKF measurement update with Mahalanobis outlier gate.
-
-        Returns True  → measurement accepted and fused.
-        Returns False → measurement is an outlier (spike) and was rejected.
-        """
         if not self.initialized:
             self.initialize(z_x, z_y, z_theta)
             return True
-
-        z    = np.array([z_x, z_y, z_theta])
-        H    = np.eye(3)                         # measurement Jacobian (identity)
-
-        # Innovation y~ = z - H·x̂⁻
-        y_inn    = z - self.x_est
-        y_inn[2] = self._wrap(y_inn[2])          # wrap angle component
-
-        # Innovation covariance S = H·P⁻·Hᵀ + R  (= P⁻ + R since H = I)
-        S = self.P + self.R
-
-        # --- Mahalanobis outlier gate ---
-        try:
-            S_inv   = np.linalg.inv(S)
-            maha_sq = float(y_inn @ S_inv @ y_inn)
-        except np.linalg.LinAlgError:
-            return False   # degenerate covariance – skip
-
-        if maha_sq > EKF_GATE_CHI2:
-            return False   # outlier / spike – reject without updating
-
-        # Kalman gain K = P⁻·Hᵀ·S⁻¹  (= P⁻·S⁻¹ since H = I)
-        K = self.P @ S_inv
-
-        # State update
-        self.x_est    = self.x_est + K @ y_inn
+        z = np.array([z_x, z_y, z_theta])
+        H = np.eye(3)
+        y_inn = z - H @ self.x_est
+        y_inn[2] = self._wrap(y_inn[2])
+        S = H @ self.P @ H.T + self.R
+        maha_sq = float(y_inn @ np.linalg.inv(S) @ y_inn)
+        if maha_sq > GATE_THRESHOLD:
+            return False
+        K = self.P @ H.T @ np.linalg.inv(S)
+        self.x_est = self.x_est + K @ y_inn
         self.x_est[2] = self._wrap(self.x_est[2])
-
-        # Covariance update – Joseph form for numerical stability
-        # P⁺ = (I - K·H)·P⁻·(I - K·H)ᵀ + K·R·Kᵀ
-        I_KH   = np.eye(3) - K @ H
+        I_KH = np.eye(3) - K @ H
         self.P = I_KH @ self.P @ I_KH.T + K @ self.R @ K.T
-
         return True
 
-    # ------------------------------------------------------------------
+    @property
+    def position(self):
+        return float(self.x_est[0]), float(self.x_est[1]), float(self.x_est[2])
+
     @staticmethod
     def _wrap(angle: float) -> float:
-        """Wrap angle to (−π, π]."""
-        return atan2(sin(angle), cos(angle))
+        return math.atan2(math.sin(angle), math.cos(angle))
 
 
 
@@ -235,8 +167,11 @@ class RobotState:
         # True after the first successful TF lookup for this robot
         self.pose_received = False
 
+        # Timestamp of the last EKF predict/update cycle for this robot (used to compute actual_dt)
+        self.last_ekf_time: float | None = None
+
         # ── EKF instance for this robot ──────────────────────────────────
-        self.ekf = RobotEKF()
+        self.ekf = RobotEKF(name=self.name)
 
         # Trajectory logging
         self.trajectory_x = []
@@ -405,6 +340,26 @@ class MultiUnicycleController(Node):
             e_star_vec = self.estar[i:i+2].flatten()
             d_star = np.linalg.norm(e_star_vec)
             self.desired_distances.append(d_star)
+
+        # ============================================
+        # RealSense Camera Recording State (MP4 via OpenCV)
+        # ============================================
+        # Active VideoWriter — None when not recording
+        self._video_writer: Optional[cv2.VideoWriter] = None
+        self._recording: bool = False
+        # Subscriber created on demand (destroyed after recording stops)
+        self._image_sub = None
+        # Path of the MP4 being written in the current run
+        self._current_video_path: Optional[str] = None
+        self._frame_count: int = 0
+        # Camera topic (compressed JPEG — ~2-5 MB/s vs ~185 MB/s for image_raw)
+        self._image_topic: str = '/camera/camera/color/image_raw/compressed'
+        # Output FPS written into the MP4 header
+        self._video_fps: float = 30.0
+        # Output directory
+        self._recording_base_dir: str = os.path.expanduser(
+            '~/Downloads/ros2_ws/experiment/recordings'
+        )
         
         # Edge labels for plotting
         self.edge_labels = []
@@ -455,6 +410,19 @@ class MultiUnicycleController(Node):
             q       = tf.transform.rotation
             z_theta = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
 
+            # ── Compute actual elapsed time for this robot's EKF cycle ──────
+            now_ns = self.get_clock().now().nanoseconds
+            if robot.last_ekf_time is not None:
+                actual_dt = (now_ns - robot.last_ekf_time) / 1e9
+                if actual_dt > 0.2 or actual_dt <= 0.0:
+                    actual_dt = 0.05  # clamp to nominal if stale or invalid
+            else:
+                actual_dt = 0.05   # first frame: use nominal dt
+            robot.last_ekf_time = now_ns
+
+            # ── EKF predict with real elapsed time (before measurement) ──────
+            robot.ekf.predict(actual_dt)
+
             # ── EKF measurement update (includes Mahalanobis outlier gate) ──
             if not robot.pose_received:
                 # First detection: initialise the EKF and mark robot as ready
@@ -482,10 +450,16 @@ class MultiUnicycleController(Node):
         """
         Publish a TwistStamped velocity command for one robot.
         Uses TwistStamped (not plain Twist) — required by ROS2 Jazzy nav2 stack.
+
+        Side-effect: starts RealSense bag recording on the first non-zero command.
         """
         if robot_name not in self.cmd_vel_pubs:
             self.get_logger().warn(f'Unknown robot: {robot_name}')
             return
+
+        # ── Start recording as soon as any bot begins to move ────────────────
+        if not self._recording and (abs(v) > 1e-4 or abs(omega) > 1e-4):
+            self._start_camera_recording()
 
         cmd = TwistStamped()
         cmd.header.stamp    = self.get_clock().now().to_msg()
@@ -527,9 +501,108 @@ class MultiUnicycleController(Node):
         self.set_velocity(robot_name, 0.0, 0.0)
 
     def stop_all(self):
-        """Stop all robots."""
+        """Stop all robots and stop any active camera recording."""
         for name in self.robot_names:
             self.stop(name)
+        self._stop_camera_recording()
+
+    # ============================================
+    # REALSENSE CAMERA RECORDING  (direct MP4 via OpenCV)
+    # ============================================
+
+    def _start_camera_recording(self):
+        """
+        Subscribe to the RealSense compressed image topic and write frames
+        directly to an MP4 file using OpenCV VideoWriter.
+        VideoWriter is initialised on the first received frame (so the
+        resolution is detected automatically).
+        Called automatically on the first non-zero velocity command.
+        """
+        if self._recording:
+            return
+
+        os.makedirs(self._recording_base_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        self._current_video_path = os.path.join(
+            self._recording_base_dir, f'run_{timestamp}.mp4'
+        )
+        self._video_writer = None   # created on first frame
+        self._frame_count  = 0
+        self._recording    = True
+
+        # Subscribe with BEST_EFFORT to match the RealSense driver's QoS
+        img_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self._image_sub = self.create_subscription(
+            CompressedImage,
+            self._image_topic,
+            self._image_callback,
+            img_qos,
+        )
+        self.get_logger().info(
+            f'[RECORDING] Started MP4 recording → {self._current_video_path}'
+        )
+
+    def _image_callback(self, msg: CompressedImage):
+        """Decode each incoming JPEG frame and append it to the MP4."""
+        if not self._recording:
+            return
+
+        buf   = np.frombuffer(msg.data, dtype=np.uint8)
+        frame = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        if frame is None:
+            return
+
+        h, w = frame.shape[:2]
+
+        # Initialise VideoWriter on the first frame (to learn w × h)
+        if self._video_writer is None:
+            # Use H.264 ('avc1') for broad MP4 compatibility.
+            # Fall back to 'mp4v' if avc1 is not available on this system.
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            self._video_writer = cv2.VideoWriter(
+                self._current_video_path, fourcc, self._video_fps, (w, h)
+            )
+            if not self._video_writer.isOpened():
+                self.get_logger().warn(
+                    '[RECORDING] avc1 codec unavailable, falling back to mp4v'
+                )
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                self._video_writer = cv2.VideoWriter(
+                    self._current_video_path, fourcc, self._video_fps, (w, h)
+                )
+            self.get_logger().info(
+                f'[RECORDING] Video size detected: {w}×{h} @ {self._video_fps:.0f} fps'
+            )
+
+        self._video_writer.write(frame)
+        self._frame_count += 1
+
+    def _stop_camera_recording(self):
+        """
+        Flush and close the MP4, then destroy the image subscriber.
+        """
+        if not self._recording:
+            return
+
+        # Stop accepting new frames first, then drain any in-flight callbacks
+        self._recording = False
+        if self._image_sub is not None:
+            self.destroy_subscription(self._image_sub)
+            self._image_sub = None
+
+        # Flush and close the video file AFTER subscriber is gone
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
+        self.get_logger().info(
+            f'[RECORDING] Saved {self._frame_count} frames → {self._current_video_path}'
+        )
 
     # ============================================
     # STATE GETTERS - Single Robot

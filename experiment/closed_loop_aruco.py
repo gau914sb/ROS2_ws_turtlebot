@@ -62,7 +62,7 @@ from aruco_opencv_msgs.msg import ArucoDetection
 
 
 # ─── tuneable defaults ────────────────────────────────────────────────────────
-TARGET_MARKER_ID = 3
+TARGET_MARKER_ID = 0
 TARGET_DISTANCE  = 0.5       # metres to travel from start
 SPEED            = 0.1       # m/s
 LOST_TIMEOUT     = 2.0       # s without detection → emergency stop

@@ -88,14 +88,14 @@ from aruco_opencv_msgs.msg import ArucoDetection
 
 # ─── tuneable defaults ────────────────────────────────────────────────────────
 TARGET_MARKER_ID = 3
-CENTER_X         = 0.0      # user-specified centre X (m)
-CENTER_Y         = 0.0      # user-specified centre Y (m)
+CENTER_X         = -0.645    # user-specified centre X (m)
+CENTER_Y         = -0.255    # user-specified centre Y (m)
 USE_DYNAMIC_CENTER = False  # if True, compute centre from initial position
 RADIUS           = 0.3      # metres
 SPEED            = 0.08     # m/s along the circle
 K_ANGULAR        = 2.0      # proportional heading gain  (rad/s / rad)
-K_GAIN           = 1.5      # lyapunov control gain (balanced for physical robot slip)
-K_RADIAL         = 1.0     # radial correction gain to close the circle (increased to overpower slip drift)
+K_GAIN           = 1     # lyapunov control gain (balanced for physical robot slip)
+K_RADIAL         = 4    # radial correction gain to close the circle (increased to overpower slip drift)
 OMEGA_MAX        = 2.0      # rad/s
 DIRECTION        = 'ccw'    # 'ccw' or 'cw'
 NUM_LAPS         = 2.0      # laps to complete (0 = infinite)
@@ -335,7 +335,13 @@ class CircleArucoController(Node):
 
             return   # wait one frame so TF is stable
 
+        # Record trajectory point for all active phases
         now_sec = self.get_clock().now().nanoseconds * 1e-9
+        self.traj_x.append(cur_x)
+        self.traj_y.append(cur_y)
+        self.traj_yaw.append(cur_yaw)
+        self.traj_t.append(now_sec - (self._t0 or now_sec))
+
         if self.phase == 'GOTO_CIRCUMFERENCE':
             tx = self.target_x - cur_x
             ty = self.target_y - cur_y
@@ -378,12 +384,6 @@ class CircleArucoController(Node):
             return
 
         # ── Phase CIRCLE ──────────────────────────────────────────────────────
-        
-        # Record trajectory point ONLY during the CIRCLE phase for accurate RMS error calculation
-        self.traj_x.append(cur_x)
-        self.traj_y.append(cur_y)
-        self.traj_yaw.append(cur_yaw)
-        self.traj_t.append(now_sec - (self._t0 or now_sec))
 
         # 1. Distance to centre for logging
         ex = self.cx - cur_x

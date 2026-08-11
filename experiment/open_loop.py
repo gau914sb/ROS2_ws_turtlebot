@@ -8,7 +8,7 @@ class StampedMover(Node):
         super().__init__('stamped_mover')
         self.publisher = self.create_publisher(TwistStamped, '/cmd_vel', 10)
         
-        self.target_distance = 0.5
+        self.target_distance = 0.7
         self.speed = 0.1
         self.duration = 5.0 
         self.start_time = self.get_clock().now()

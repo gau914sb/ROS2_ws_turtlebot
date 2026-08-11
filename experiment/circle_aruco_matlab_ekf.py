@@ -32,7 +32,7 @@ RADIUS           = 0.3      # metres
 SPEED            = 0.08     # m/s along the circle
 K_ANGULAR        = 2.0      # proportional heading gain  (rad/s / rad)
 K_GAIN           = 1   # lyapunov control gain (balanced for physical robot slip)
-K_RADIAL         = 4.0     # radial correction gain to close the circle
+K_RADIAL         = 4.0     # radial correction gain to close the circle (increased to overpower slip drift)
 OMEGA_MAX        = 2.0      # rad/s
 DIRECTION        = 'ccw'    # 'ccw' or 'cw'
 NUM_LAPS         = 2.0      # laps to complete (0 = infinite)
@@ -407,29 +407,15 @@ class CircleArucoController(Node):
         term = (cur_x - self.cx) * math.cos(cur_yaw) + (cur_y - self.cy) * math.sin(cur_yaw)
         u = (self.speed + self.k_gain * term) / self.radius
         
-        # CRITICAL FIX: The MATLAB control law above ONLY stabilizes heading, not radial distance!
-        # We MUST add a radial correction term so it actively steers back to the exact radius.
-        radial_error = dist_to_centre - self.radius
+        # # CRITICAL FIX: The MATLAB control law above ONLY stabilizes heading, not radial distance!
+        # # We MUST add a linear radial correction term so it actively steers back to the exact radius.
+        # # This is strictly bounded to prevent the robot from commanding massive negative velocities and spinning out.
+        # radial_error = dist_to_centre - self.radius
+        # radial_correction = K_RADIAL * radial_error
         
-        # Initialize integral error for PI control
-        if not hasattr(self, 'integral_error'):
-            self.integral_error = 0.0
-            
-        # Accumulate integral error (approx 10Hz loop)
-        self.integral_error += radial_error * 0.1
-        
-        # Anti-windup: limit the maximum integral accumulation to prevent runaway
-        self.integral_error = max(-2.0, min(2.0, self.integral_error))
-        
-        # PI Control: Proportional fights immediate drift, Integral gently eliminates steady-state gap
-        K_I = 0.1  # Drastically reduced from 1.0 to stop the massive oscillations
-        K_P = 4.0  # Increased for stiffer immediate tracking
-        radial_correction = K_P * radial_error + K_I * self.integral_error
-        
-        # STRICT SYMMETRIC BOUND:
-        # Prevents the robot from spinning wildly if the correction gets too large in either direction.
-        radial_correction = max(-0.4, min(0.4, radial_correction))
-        u += radial_correction
+        # # Bound the radial influence to prevent spin-outs if it gets too far off-track
+        # radial_correction = max(-0.5, min(0.5, radial_correction))
+        # u += radial_correction
         
         omega = self.dir_sign * u
         omega = max(-self.omega_max, min(self.omega_max, omega))
