@@ -1,0 +1,311 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    columns=fullflexible,
+    backgroundcolor=\color{gray!8},
+    frame=single,
+    framerule=0.3pt,
+    xleftmargin=2pt,
+    xrightmargin=2pt
+}
+
+\title{Multi-Robot Double-Angle Formation Controller\\
+\large Mathematical Formulation and Data Logging Reference}
+\author{TurtleBot3 Swarm Experiments}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+
+This document describes the controller implemented in
+\texttt{multi\_unicycle\_controller\_double\_angle.py}, which drives a group of
+$N = 4$ TurtleBot3 unicycle robots into and around a desired formation while
+simultaneously enforcing two geometric constraints on every controlled
+inter-robot pair:
+
+\begin{itemize}
+    \item \textbf{Connectivity}: neighbors must not drift further apart than a
+    connectivity radius $R_c$ (otherwise they lose line-of-sight / sensing
+    range).
+    \item \textbf{Safety}: neighbors must not come closer together than a
+    safety radius $R_s$ (otherwise their physical bodies risk collision).
+\end{itemize}
+
+These constraints are enforced using a \emph{double-angle visual-cone}
+parameterization of inter-agent bearing angles, which converts the distance
+constraints $R_s + r \le \lVert p_i - p_j \rVert \le R_c - r$ into equivalent
+bounds on an angle $\psi_{ij}$ that remains well-conditioned (no singularities)
+across the full admissible range.
+
+This document also specifies exactly what data the controller now logs to
+CSV (replacing the previous GIF/animation export, which was slow and
+memory-heavy for long runs) and what each column means.
+
+\section{Unicycle Model}
+
+Each robot $i$ is modeled as a unicycle with state $(x_i, y_i, \theta_i)$ in
+the global frame and control inputs $(v_i, \omega_i)$:
+
+\begin{align}
+    \dot{x}_i &= v_i \cos\theta_i \\
+    \dot{y}_i &= v_i \sin\theta_i \\
+    \dot{\theta}_i &= \omega_i
+\end{align}
+
+Odometry feedback provides $(x_i, y_i, \theta_i)$ directly, and body-frame
+velocities $(v_i, \omega_i)$ are rotated into global-frame velocities
+$(v_{x,i}, v_{y,i}, \omega_i)$ for logging purposes.
+
+\section{Formation Graph and Desired Geometry}
+
+The $4$ robots are connected by $5$ edges, encoded in the incidence matrix
+$H \in \mathbb{R}^{5 \times 4}$:
+
+\begin{equation}
+    H =
+    \begin{pmatrix}
+        -1 & 1 & 0 & 0 \\
+        0 & -1 & 1 & 0 \\
+        0 & 0 & -1 & 1 \\
+        1 & 0 & 0 & -1 \\
+        0 & 1 & 0 & -1
+    \end{pmatrix},
+    \qquad
+    \bar{H} = H \otimes I_2 \in \mathbb{R}^{10 \times 8}
+\end{equation}
+
+Row $k$ of $H$ defines edge $k$ between the two robots whose entries are
+$-1$ and $+1$. With $p = [x_1\,y_1\,x_2\,y_2\,x_3\,y_3\,x_4\,y_4]^\top$ the
+stacked global positions, the edge (relative-position) vector for all edges is
+
+\begin{equation}
+    e = \bar{H}\, p \in \mathbb{R}^{10}, \qquad
+    e_k = p_j - p_i \ \text{for edge } k = (i,j).
+\end{equation}
+
+A desired formation shape $p^\star$ (see \texttt{self.pstar} in code) defines
+the desired edge vectors $e^\star = \bar{H} p^\star$, and the desired
+Euclidean distance for edge $k$ is
+
+\begin{equation}
+    d_k^\star = \lVert e_k^\star \rVert.
+\end{equation}
+
+A second incidence matrix $H_M$ (with $\bar{H}_M = H_M \otimes I_2$) defines
+an additional pair used purely for collision-avoidance monitoring between
+non-adjacent robots.
+
+\section{Double-Angle Visual-Cone Parameterization}
+
+\subsection{Physical radii and their relationship to the bearing angle}
+
+Let $r$ be the physical radius of each robot footprint, $R_s$ the safety
+margin, $R_c$ the connectivity (sensing) radius, and $R_{crit}$ the critical
+(hard) collision radius. For a pair of robots whose \emph{centers} are a
+distance $d_{ij} = \lVert e_{ij}\rVert$ apart, define the half-angle subtended
+by one robot's footprint as seen from the other:
+
+\begin{equation}
+    \psi_{ij} = 2 \arcsin\!\left(\frac{r}{d_{ij}}\right).
+\end{equation}
+
+This angle increases monotonically as $d_{ij}$ decreases, so it is used as a
+proxy for distance that behaves well (no division blow-up) as robots get
+close. Three reference angles bound the admissible range of $\psi_{ij}$,
+each obtained from the corresponding critical distance via the double-angle
+identity $\cos\psi = 1 - 2\sin^2(\psi/2) = 1-2(r/d)^2$:
+
+\begin{align}
+    \bar{R}_c &= 1 - 2\left(\frac{r}{R_c - r}\right)^2,
+    &\psi_{\min} &= \arccos(\bar{R}_c) \\
+    \bar{R}_s &= 1 - 2\left(\frac{r}{R_s + r}\right)^2,
+    &\psi_{\max} &= \arccos(\bar{R}_s) \\
+    \bar{R}_{crit} &= 1 - 2\left(\frac{r}{R_{crit}}\right)^2,
+    &\psi_{crit} &= \arccos(\bar{R}_{crit})
+\end{align}
+
+\subsection{Distance bounds used for logging}
+
+Every logged inter-robot distance $d_{ij}$ is compared against the same pair
+of physical bounds used to derive the angle limits above:
+
+\begin{equation}
+    \boxed{\;\text{lower bound} \;=\; R_s + r\;} \qquad
+    \boxed{\;\text{upper bound} \;=\; R_c - r\;}
+\end{equation}
+
+\textbf{Why these bounds:} $R_s$ and $R_c$ are specified as clearances/ranges
+measured from each robot's \emph{surface}, not its center. Since each robot
+occupies a disk of radius $r$, the minimum center-to-center distance that
+still preserves a safety clearance of $R_s$ between the two disks' surfaces is
+$R_s + r$, and the maximum center-to-center distance that still keeps the two
+robots' surfaces within a connectivity range of $R_c$ is $R_c - r$. In the
+current configuration ($r = 0.2\,\text{m}$, $R_s = 0.4\,\text{m}$,
+$R_c = 3.0\,\text{m}$), this gives:
+
+\begin{equation}
+    \text{lower bound} = 0.4 + 0.2 = 0.6\,\text{m}, \qquad
+    \text{upper bound} = 3.0 - 0.2 = 2.8\,\text{m}.
+\end{equation}
+
+Every edge's desired distance $d_k^\star$ (derived from the desired formation
+$p^\star$) is chosen to lie strictly within this interval, and the controller
+is designed so that, starting from a feasible configuration, the actual
+distance $d_k(t)$ remains within $(\text{lower bound}, \text{upper bound})$
+for all $t$.
+
+\subsection{Control law}
+
+For each formation edge $k$ with bearing-derived quantities
+$\psi_k$, unit vector $g_k = e_k / d_k$, and left/right rotations of $g_k$ by
+$\pm\psi_k/2$:
+
+\begin{equation}
+    R(\pm\psi_k/2) =
+    \begin{pmatrix}
+        \cos(\psi_k/2) & \mp\sin(\psi_k/2) \\
+        \pm\sin(\psi_k/2) & \cos(\psi_k/2)
+    \end{pmatrix},
+    \qquad
+    g_{k}^{R} = R(-\psi_k/2)\,g_k,\quad g_{k}^{L} = R(+\psi_k/2)\,g_k
+\end{equation}
+
+a projected gradient direction is built from the projector
+$P_g = I - g g^\top$:
+
+\begin{equation}
+    f_{g,k} = P_{g_k^{L}}\, g_k^{R} + P_{g_k^{R}}\, g_k^{L}, \qquad
+    f_{\psi,k} = \frac{\sin(2\psi_k)}{2(1+\cos\psi_k)}.
+\end{equation}
+
+A barrier-like gain $\xi_k$ pushes the edge back toward $d_k^\star$ as
+$\psi_k$ approaches either limit angle, using the error term
+$E_k = \cos^2\psi_k - \cos^2\psi_k^\star$ and the corresponding one-sided gain
+($K_c$ near the connectivity limit, $K_s$ near the safety limit):
+
+\begin{equation}
+    \xi_k = \frac{4 E_k}{K_k^2 - E_k^2}, \qquad
+    K_k = q\,K_{c,k} + (1-q)\,K_{s,k}, \qquad
+    q = \mathbb{1}[E_k > 0].
+\end{equation}
+
+The aggregate formation velocity in the stacked position space is
+
+\begin{equation}
+    \dot{p} = -\bar{H}^\top R_\psi\, \xi,
+\end{equation}
+
+where $R_\psi = \mathrm{blockdiag}(f_{\psi,1} f_{g,1}, \dots)$. This is then
+converted, per robot $i$, into unicycle commands using the current heading
+$\theta_i$ and a small look-ahead length $\ell$:
+
+\begin{align}
+    v_i &= 2\left(\dot{p}_{2i}\cos\theta_i + \dot{p}_{2i+1}\sin\theta_i\right) \\
+    \omega_i &= \frac{-\dot{p}_{2i}\sin\theta_i + \dot{p}_{2i+1}\cos\theta_i}{\ell}
+\end{align}
+
+clipped to $v_i \in [-v_{max}, v_{max}]$ and $\omega_i \in [-\omega_{max},
+\omega_{max}]$. An analogous but separate term $\xi_\beta$ (using
+$R_{crit}$) is computed for pairwise collision avoidance and can optionally be
+added to $\dot p$ (disabled by default in the current code).
+
+\section{Data Logging}
+
+\subsection{What changed and why}
+
+The controller previously rendered a combined trajectory + distance
+\texttt{matplotlib} animation and saved it as a GIF
+(\texttt{animate\_combined}). For long experiments this was slow to render
+and consumed large amounts of RAM (every frame is a rasterized image held in
+memory before encoding). This has been replaced with a lightweight CSV
+export (\texttt{save\_csv}) that streams the already-collected numeric log
+into a single file with negligible memory and CPU cost. The PNG summary
+plots (final trajectories, distance-vs-time) are still produced, since those
+are cheap.
+
+\subsection{Sampling}
+
+State is logged every \texttt{log\_interval} = $0.1\,\text{s}$ of wall-clock
+time (see \texttt{log\_trajectories}), once all four robots have produced at
+least one odometry message.
+
+\subsection{CSV schema}
+
+The exported file (\texttt{log\_data.csv}, written into the timestamped
+output folder alongside the PNG plots) has one row per logged tick and the
+following columns:
+
+\begin{center}
+\begin{tabular}{@{}l l@{}}
+\toprule
+\textbf{Column(s)} & \textbf{Description} \\
+\midrule
+\texttt{time} & Elapsed time since logging started (s) \\
+\texttt{bot\_i\_x}, \texttt{bot\_i\_y}, \texttt{bot\_i\_theta} &
+    Global-frame pose of robot $i$ for $i \in \{0,1,2,3\}$ (m, m, rad) \\
+\texttt{d1} \dots \texttt{d5} &
+    Actual inter-robot distance for formation edges $1$--$5$ (m) \\
+\texttt{e1} \dots \texttt{e5} &
+    Distance error $e_k = d_k - d_k^\star$ for edges $1$--$5$ (m) \\
+\texttt{lower\_bound} &
+    Constant column, $R_s + r$ (m) --- minimum admissible distance \\
+\texttt{upper\_bound} &
+    Constant column, $R_c - r$ (m) --- maximum admissible distance \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Edges $1$--$5$ correspond to rows $1$--$5$ of $H$, i.e.\ the robot pairs
+(bot\_0--bot\_1), (bot\_1--bot\_2), (bot\_2--bot\_3), (bot\_3--bot\_0),
+(bot\_1--bot\_3) respectively (see \texttt{get\_connected\_pairs}).
+
+\texttt{lower\_bound} and \texttt{upper\_bound} are repeated on every row
+(rather than stored once) so that the CSV can be loaded directly into a
+plotting tool (e.g.\ \texttt{pandas} + \texttt{matplotlib}) and the bounds
+drawn as reference lines against \texttt{d1}\dots\texttt{d5} or
+\texttt{e1}\dots\texttt{e5} without any extra bookkeeping.
+
+\subsection{Output directory layout}
+
+On shutdown (\texttt{save\_all\_plots}), the controller writes to
+\texttt{\textasciitilde/turtlebot3\_simulations/plots/\allowbreak
+<timestamp>/}:
+
+\begin{lstlisting}
+~/turtlebot3_simulations/plots/<YYYY-MM-DD_HH-MM-SS>/
+    trajectory.png     # final trajectories + initial/final connections
+    distances.png      # d_k(t) vs. desired distance, per edge
+    log_data.csv        # full numeric log (see schema above)
+\end{lstlisting}
+
+\subsection{Post-processing example}
+
+\begin{lstlisting}[language=Python]
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("log_data.csv")
+
+fig, ax = plt.subplots()
+for k in range(1, 6):
+    ax.plot(df["time"], df[f"d{k}"], label=f"d{k}")
+ax.axhline(df["lower_bound"].iloc[0], color="red", linestyle="--", label="lower bound (Rs+r)")
+ax.axhline(df["upper_bound"].iloc[0], color="gray", linestyle="--", label="upper bound (Rc-r)")
+ax.set_xlabel("time (s)"); ax.set_ylabel("distance (m)"); ax.legend()
+plt.show()
+\end{lstlisting}
+
+\end{document}

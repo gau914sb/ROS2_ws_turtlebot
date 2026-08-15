@@ -32,6 +32,7 @@ from matplotlib.animation import FuncAnimation
 import time
 from datetime import datetime
 import os
+import csv
 from scipy.linalg import block_diag
 
 
@@ -135,6 +136,10 @@ class MultiUnicycleController(Node):
         self.Rc = 3.0 # Connectivity radius
         self.Rcrit = 1.5 # Critical collision radius
 
+        # Inter-agent center-to-center distance bounds (used for distance-error logging)
+        self.dist_lower_bound = self.Rs + self.r  # Minimum allowed distance (collision/safety)
+        self.dist_upper_bound = self.Rc - self.r  # Maximum allowed distance (connectivity)
+
         # Double angle bound formulation
         self.Rc_bar = 1 - (2 * (self.r / (self.Rc - self.r))**2)
         self.Rs_bar = 1 - (2 * (self.r / (self.Rs + self.r))**2)
@@ -221,6 +226,7 @@ class MultiUnicycleController(Node):
         
         # Distance logging for neighbor pairs
         self.distance_log = {i: [] for i in range(self.H.shape[0])}  # One list per edge
+        self.error_log = {i: [] for i in range(self.H.shape[0])}     # Distance error (actual - desired) per edge
         
         # Calculate desired distances from pstar
         self.desired_distances = []
@@ -523,6 +529,7 @@ class MultiUnicycleController(Node):
                     
                     # Calculate distance error (current - desired)
                     error = dist - self.desired_distances[edge_idx]
+                    self.error_log[edge_idx].append(error)
                     error_msgs.append(f"e{edge_idx+1}={error:+.3f}")
                 
                 # Log distance errors to terminal
@@ -653,11 +660,11 @@ class MultiUnicycleController(Node):
         # ==================================
         
         # VARIANT 1: Connectivity Preservation Only
-        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
+        d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
         
         # VARIANT 2: Connectivity Preservation + Collision Avoidance 
         # Uncomment the line below to activate collision avoidance
-        d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
+        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
 
         d_dt = d_dt.flatten() # Flatten to 1D array for Unicycle processing
 
@@ -783,28 +790,87 @@ class MultiUnicycleController(Node):
     
     def save_all_plots(self):
         """
-        Save all plots (trajectory, distances, combined animation) with timestamp.
+        Save trajectory/distance PNG plots and the full logged data as CSV, with timestamp.
         Creates a subfolder with the timestamp for organization.
         Called automatically on shutdown.
+
+        Note: GIF/animation export was removed (it was slow and RAM-heavy for long runs).
+        Use the CSV output with plot_from_csv-style post-processing instead if an
+        animation is ever needed.
         """
         timestamp = self.get_timestamp()
         save_dir = self.get_save_directory(timestamp)
-        
-        print(f'Saving plots to {save_dir}...')
-        
+
+        print(f'Saving outputs to {save_dir}...')
+
         # Save trajectory plot (PNG)
         traj_path = os.path.join(save_dir, 'trajectory.png')
         self.plot_trajectories(save_path=traj_path, show=False)
-        
+
         # Save distances plot (PNG)
         dist_path = os.path.join(save_dir, 'distances.png')
         self.plot_distances(save_path=dist_path, show=False)
-        
-        # Save combined animation (trajectory + distance side by side) as GIF
-        anim_path = os.path.join(save_dir, 'combined_animation.gif')
-        self.animate_combined(save_path=anim_path, show=False)
-        
-        print(f'All plots saved successfully to {save_dir}!')
+
+        # Save full logged data (positions, headings, distances, errors, bounds) as CSV
+        csv_path = os.path.join(save_dir, 'log_data.csv')
+        self.save_csv(save_path=csv_path)
+
+        print(f'All outputs saved successfully to {save_dir}!')
+
+    def save_csv(self, save_path: str):
+        """
+        Save all logged data to a single CSV file:
+          - x, y, theta (global frame) for every robot
+          - all 5 inter-robot distances (d1..d5)
+          - all 5 distance errors (e1..e5), where error = actual - desired distance
+          - the lower bound (Rs + r) and upper bound (Rc - r) on inter-robot distance
+
+        Args:
+            save_path: Full path to the output .csv file
+        """
+        num_edges = self.H.shape[0]
+
+        # Rows are limited by the shortest logged series, since trajectory/distance
+        # logging can start at slightly different ticks (distances need all robots ready).
+        lengths = [len(self.trajectory_time)]
+        for name in self.robot_names:
+            lengths.append(len(self.robots[name].trajectory_x))
+        for edge_idx in range(num_edges):
+            lengths.append(len(self.distance_log[edge_idx]))
+            lengths.append(len(self.error_log[edge_idx]))
+
+        num_rows = min(lengths) if lengths else 0
+
+        if num_rows == 0:
+            print('No logged data available to save to CSV')
+            return
+
+        header = ['time']
+        for name in self.robot_names:
+            header += [f'{name}_x', f'{name}_y', f'{name}_theta']
+        for edge_idx in range(num_edges):
+            header.append(f'd{edge_idx+1}')
+        for edge_idx in range(num_edges):
+            header.append(f'e{edge_idx+1}')
+        header += ['lower_bound', 'upper_bound']
+
+        with open(save_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+
+            for k in range(num_rows):
+                row = [self.trajectory_time[k]]
+                for name in self.robot_names:
+                    robot = self.robots[name]
+                    row += [robot.trajectory_x[k], robot.trajectory_y[k], robot.trajectory_theta[k]]
+                for edge_idx in range(num_edges):
+                    row.append(self.distance_log[edge_idx][k])
+                for edge_idx in range(num_edges):
+                    row.append(self.error_log[edge_idx][k])
+                row += [self.dist_lower_bound, self.dist_upper_bound]
+                writer.writerow(row)
+
+        print(f'Logged data ({num_rows} rows) saved to {save_path}')
     
     def get_connected_pairs(self) -> List[Tuple[int, int]]:
         """
@@ -1122,11 +1188,11 @@ class MultiUnicycleController(Node):
         ax.legend(loc='best', fontsize=9, ncol=2)
         ax.grid(True, alpha=0.3)
         
-        # Add safety and connectivity radius lines if meaningful
-        ax.axhline(y=self.Rs, color='red', linestyle=':', linewidth=1, alpha=0.5,
-                  label=f'Safety radius: {self.Rs}m')
-        ax.axhline(y=self.Rc, color='gray', linestyle=':', linewidth=1, alpha=0.5,
-                  label=f'Connectivity radius: {self.Rc}m')
+        # Add lower/upper inter-robot distance bound lines
+        ax.axhline(y=self.dist_lower_bound, color='red', linestyle=':', linewidth=1, alpha=0.5,
+                  label=f'Lower bound (Rs+r): {self.dist_lower_bound}m')
+        ax.axhline(y=self.dist_upper_bound, color='gray', linestyle=':', linewidth=1, alpha=0.5,
+                  label=f'Upper bound (Rc-r): {self.dist_upper_bound}m')
         
         plt.tight_layout()
         
