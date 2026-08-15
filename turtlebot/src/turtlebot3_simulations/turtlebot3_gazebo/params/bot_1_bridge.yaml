@@ -1,0 +1,25 @@
+# Bridge config for bot_1
+
+- ros_topic_name: "/bot_1/cmd_vel"
+  gz_topic_name: "/bot_1/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/bot_1/odom"
+  gz_topic_name: "/bot_1/ground_truth_odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/bot_1/tf"
+  gz_topic_name: "/bot_1/tf"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/bot_1/joint_states"
+  gz_topic_name: "/bot_1/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
