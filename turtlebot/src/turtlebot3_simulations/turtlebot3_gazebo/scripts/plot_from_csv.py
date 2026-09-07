@@ -11,13 +11,14 @@ simulation:
     (dotted gray) and final positions (solid black).
   - Distance plot: d1..d5 vs time, with the desired distance per edge and
     the lower bound (Rs+r) / upper bound (Rc-r) drawn as reference lines.
-  - Optional animation (--animate / --save-anim) showing both panels
-    evolving together over time.
+  - Optional animation (--animate / --gif / --save-anim) showing both
+    panels evolving together over time.
 
 Usage:
     python3 plot_from_csv.py log_data.csv
     python3 plot_from_csv.py log_data.csv --outdir ./plots
     python3 plot_from_csv.py log_data.csv --animate
+    python3 plot_from_csv.py log_data.csv --gif --no-show
     python3 plot_from_csv.py log_data.csv --save-anim trajectory.gif --no-show
 """
 
@@ -185,7 +186,7 @@ def plot_all_distances_combined(df, edge_ids, pairs, robots, extra_pairs,
         plt.close(fig)
 
 
-def plot_distances(df, edge_ids, pairs, robots, save_path=None, show=True):
+def plot_distances(df, edge_ids, pairs, robots, extra_pairs=None, save_path=None, show=True):
     fig, ax = plt.subplots(figsize=(12, 8))
 
     t = df['time'].to_numpy()
@@ -203,6 +204,15 @@ def plot_distances(df, edge_ids, pairs, robots, save_path=None, show=True):
         ax.plot(t, d, '-', color=color, linewidth=2, label=f'{label} (actual)')
         ax.axhline(y=d_star, color=color, linestyle='--', linewidth=1.2, alpha=0.6,
                    label=f'{label} (desired: {d_star:.3f}m)')
+
+    for idx, (name_a, name_b) in enumerate(extra_pairs or []):
+        if name_a not in robots or name_b not in robots:
+            print(f'Skipping extra pair ({name_a}, {name_b}): robot not found in CSV columns')
+            continue
+        color = EXTRA_PAIR_COLORS[idx % len(EXTRA_PAIR_COLORS)]
+        d_extra = compute_pairwise_distance(df, name_a, name_b)
+        ax.plot(t, d_extra, '-', color=color, linewidth=2.5,
+                label=f'{name_a}-{name_b} (from x,y)')
 
     ax.axhline(y=lower_bound, color='red', linestyle=':', linewidth=1.8,
                label=f'Lower bound Rs+r = {lower_bound:.3f}m')
@@ -225,7 +235,7 @@ def plot_distances(df, edge_ids, pairs, robots, save_path=None, show=True):
         plt.close(fig)
 
 
-def animate(df, robots, pairs, edge_ids, interval=50, save_path=None, show=True):
+def animate(df, robots, pairs, edge_ids, extra_pairs=None, interval=50, save_path=None, show=True):
     fig, (ax_traj, ax_dist) = plt.subplots(1, 2, figsize=(18, 8))
 
     xs = {name: df[f'{name}_x'].to_numpy() for name in robots}
@@ -269,10 +279,21 @@ def animate(df, robots, pairs, edge_ids, interval=50, save_path=None, show=True)
                               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
     ax_traj.legend(loc='upper right', fontsize=8)
 
+    # Extra (non-edge) pair distances, computed directly from x,y
+    extra_pair_data = []
+    for idx, (name_a, name_b) in enumerate(extra_pairs or []):
+        if name_a not in robots or name_b not in robots:
+            print(f'Skipping extra pair ({name_a}, {name_b}): robot not found in CSV columns')
+            continue
+        color = EXTRA_PAIR_COLORS[idx % len(EXTRA_PAIR_COLORS)]
+        d_extra = compute_pairwise_distance(df, name_a, name_b)
+        extra_pair_data.append((name_a, name_b, d_extra, color))
+
     # Distance subplot
     lower_bound = df['lower_bound'].iloc[0]
     upper_bound = df['upper_bound'].iloc[0]
-    all_d = np.concatenate([df[f'd{k}'].to_numpy() for k in edge_ids])
+    all_d_parts = [df[f'd{k}'].to_numpy() for k in edge_ids] + [d for _, _, d, _ in extra_pair_data]
+    all_d = np.concatenate(all_d_parts)
     ax_dist.set_xlim(0, t[-1] * 1.05 if t[-1] > 0 else 1.0)
     ax_dist.set_ylim(0, max(all_d.max(), upper_bound) * 1.1)
     ax_dist.axhline(y=lower_bound, color='red', linestyle=':', linewidth=1.5, alpha=0.7,
@@ -291,6 +312,20 @@ def animate(df, robots, pairs, edge_ids, interval=50, save_path=None, show=True)
         line, = ax_dist.plot([], [], '-', color=color, linewidth=2,
                               label=f'{robots[i]}-{robots[j]}')
         dist_lines.append(line)
+
+        # Reference (desired) distance for this edge, as a static horizontal line
+        d = df[f'd{k}'].to_numpy()
+        e = df[f'e{k}'].to_numpy()
+        d_star = float(np.mean(d - e))
+        ax_dist.axhline(y=d_star, color=color, linestyle='--', linewidth=1.2, alpha=0.6,
+                         label=f'{robots[i]}-{robots[j]} (desired: {d_star:.3f}m)')
+
+    extra_dist_lines = []
+    for name_a, name_b, _, color in extra_pair_data:
+        line, = ax_dist.plot([], [], '-', color=color, linewidth=2.5,
+                              label=f'{name_a}-{name_b} (from x,y)')
+        extra_dist_lines.append(line)
+
     time_indicator, = ax_dist.plot([], [], 'k-', linewidth=1.5, alpha=0.7)
     ax_dist.legend(loc='upper right', fontsize=8)
 
@@ -304,10 +339,12 @@ def animate(df, robots, pairs, edge_ids, interval=50, save_path=None, show=True)
             line.set_data([], [])
         for line in dist_lines:
             line.set_data([], [])
+        for line in extra_dist_lines:
+            line.set_data([], [])
         time_indicator.set_data([], [])
         time_text.set_text('')
         return (list(traj_lines.values()) + list(markers.values()) + conn_lines +
-                dist_lines + [time_indicator, time_text])
+                dist_lines + extra_dist_lines + [time_indicator, time_text])
 
     def update(frame):
         current_positions = []
@@ -332,10 +369,12 @@ def animate(df, robots, pairs, edge_ids, interval=50, save_path=None, show=True)
 
         for idx, k in enumerate(edge_ids):
             dist_lines[idx].set_data(t[:frame + 1], df[f'd{k}'].to_numpy()[:frame + 1])
+        for idx, (_, _, d_extra, _) in enumerate(extra_pair_data):
+            extra_dist_lines[idx].set_data(t[:frame + 1], d_extra[:frame + 1])
         time_indicator.set_data([t[frame], t[frame]], [0, ax_dist.get_ylim()[1]])
 
         return (list(traj_lines.values()) + list(markers.values()) + conn_lines +
-                dist_lines + [time_indicator, time_text])
+                dist_lines + extra_dist_lines + [time_indicator, time_text])
 
     anim = FuncAnimation(fig, update, frames=num_frames, init_func=init,
                           blit=False, interval=interval, repeat=True)
@@ -361,6 +400,10 @@ def main():
                          help='Directory to save PNG plots (default: alongside the CSV)')
     parser.add_argument('--animate', action='store_true',
                          help='Show an animation of trajectory + distances evolving over time')
+    parser.add_argument('--gif', action='store_true',
+                         help="Save the animation as 'animation.gif' next to the CSV "
+                              '(fixed filename, overwritten on rerun); implies --animate. '
+                              'Use --save-anim instead to pick a custom path/name.')
     parser.add_argument('--save-anim', default=None,
                          help='Path to save the animation (e.g. anim.gif or anim.mp4); implies --animate')
     parser.add_argument('--no-show', action='store_true',
@@ -390,13 +433,22 @@ def main():
     outdir = args.outdir or os.path.dirname(os.path.abspath(args.csv_path))
     os.makedirs(outdir, exist_ok=True)
 
-    do_animate = args.animate or bool(args.save_anim)
+    do_animate = args.animate or args.gif or bool(args.save_anim)
     show_static = not args.no_show and not do_animate
+
+    # --save-anim (explicit path) takes precedence over --gif (fixed default name)
+    anim_save_path = args.save_anim or (os.path.join(outdir, 'animation.gif') if args.gif else None)
+
+    # Extra pair(s) computed directly from x,y (default: bot_0/bot_2, the
+    # pair that ends up colliding), independent of the formation edge list.
+    # Included in every plot below: the PNG distance plot, the combined
+    # plot, and the animation/GIF.
+    extra_pairs = args.extra_pair or [('bot_0', 'bot_2')]
 
     plot_trajectories(df, robots, pairs,
                        save_path=os.path.join(outdir, 'trajectory_from_csv.png'),
                        show=show_static)
-    plot_distances(df, edge_ids, pairs, robots,
+    plot_distances(df, edge_ids, pairs, robots, extra_pairs=extra_pairs,
                     save_path=os.path.join(outdir, 'distances_from_csv.png'),
                     show=show_static)
 
@@ -413,16 +465,12 @@ def main():
     lower_bound = float(df['lower_bound'].iloc[0])
     upper_bound = float(df['upper_bound'].iloc[0])
 
-    # Extra pair(s) computed directly from x,y (default: bot_0/bot_2, the
-    # pair that ends up colliding), independent of the formation edge list.
-    extra_pairs = args.extra_pair or [('bot_0', 'bot_2')]
-
     plot_all_distances_combined(
         df, edge_ids, pairs, robots, extra_pairs, lower_bound, upper_bound,
         save_path=os.path.join(dist_dir, 'all_distances.png'), show=False)
 
     if do_animate:
-        animate(df, robots, pairs, edge_ids, save_path=args.save_anim,
+        animate(df, robots, pairs, edge_ids, extra_pairs=extra_pairs, save_path=anim_save_path,
                 show=not args.no_show)
 
 

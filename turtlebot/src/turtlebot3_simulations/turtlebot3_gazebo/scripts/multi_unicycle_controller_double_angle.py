@@ -107,7 +107,10 @@ class MultiUnicycleController(Node):
 
         # Controller related initializations and variables
 
-        self.pstar = np.array([[0.6], [2.0], [1.8], [2.0], [2.4], [0.0], [0.0], [0.0]])  # Desired formation points
+        # self.pstar = np.array([[0.6], [2.0], [1.8], [2.0], [2.4], [0.0], [0.0], [0.0]])  # Desired formation points
+        # self.pstar = np.array([[0.15], [0.5], [0.45], [0.5], [0.6], [0.0], [0.0], [0.0]])  # Desired formation points
+        # self.pstar = np.array([[0.30], [1.0], [0.90], [1.0], [1.2], [0.0], [0.0], [0.0]])  # Desired formation points
+        self.pstar = np.array([[0.4], [0.3], [-0.4], [0.3], [-0.7], [-0.4], [0.7], [-0.4]])       
 
         # ============================================
         # DOUBLE-ANGLE MATHEMATICAL PARAMETERIZATION
@@ -131,10 +134,15 @@ class MultiUnicycleController(Node):
         self.estar = self.Hbar_Nset @ self.pstar
 
         # Radius parameters (Rcrit 7.5 scaled by 0.2 = 1.5)
-        self.r = 0.2 # Agent radius
-        self.Rs = 0.4  # Safety radius
-        self.Rc = 3.0 # Connectivity radius
-        self.Rcrit = 1.5 # Critical collision radius
+        # self.r = 0.135 # Agent radius
+        # self.Rs = 0.4  # Safety radius
+        # self.Rc = 3.0 # Connectivity radius
+        # self.Rcrit = 1.5 # Critical collision radius
+
+        self.r = 0.135 # Agent radius
+        self.Rs = 0.16  # Safety radius
+        self.Rc = 1.5 # Connectivity radius
+        self.Rcrit = 0.4 # Critical collision radius
 
         # Inter-agent center-to-center distance bounds (used for distance-error logging)
         self.dist_lower_bound = self.Rs + self.r  # Minimum allowed distance (collision/safety)
@@ -560,6 +568,7 @@ class MultiUnicycleController(Node):
 
         R_psi_N = None
         xi = np.array([])
+        E = np.array([])
 
         # ==================================
         # 1. Connectivity Preservation Loop
@@ -605,6 +614,7 @@ class MultiUnicycleController(Node):
             denom = K**2 - E_ij**2
             xi_temp = 0.0 if abs(denom) < 1e-6 else 4 * E_ij / denom
             xi = np.append(xi, xi_temp)
+            E = np.append(E, E_ij)
 
         # ==================================
         # 2. Collision Avoidance Loop
@@ -664,7 +674,10 @@ class MultiUnicycleController(Node):
         
         # VARIANT 2: Connectivity Preservation + Collision Avoidance 
         # Uncomment the line below to activate collision avoidance
-        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
+        # d_dt = - 10000000 * (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
+
+        # Variant 3
+        # d_dt = -10000000 * (self.Hbar_Nset.T @ R_psi_N @ E)
 
         d_dt = d_dt.flatten() # Flatten to 1D array for Unicycle processing
 

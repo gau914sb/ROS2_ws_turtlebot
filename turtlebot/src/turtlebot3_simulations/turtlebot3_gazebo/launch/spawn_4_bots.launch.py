@@ -38,12 +38,19 @@ from launch_ros.actions import Node, PushRosNamespace
 
 # ── Robot configurations ──────────────────────────────────────────────────────
 ROBOTS = [
-    ('bot_0', 2.4, 0.6, 0.0),
-    ('bot_1', 0.44, 0.44, math.pi/2),
-    ('bot_2', 1.4, 0.5, math.pi),
-    ('bot_3', 0.88, 0.0, 3*math.pi/2),
+    ('bot_0', -0.3, 0.0, math.pi/4),
+    ('bot_1', -0.6, 0.4, -math.pi/4),
+    ('bot_2', 0.1, -0.2, 2*math.pi/3),
+    ('bot_3', -0.4, -0.4, -2*math.pi/3),
 ]
 
+
+# ROBOTS = [
+#     ('bot_0', 1.32, 0.44, 0.0),
+#     ('bot_1', 0.88, 0.88, math.pi/2),
+#     ('bot_2', 0.44, 0.44, math.pi),
+#     ('bot_3', 0.88, 0.0, 3*math.pi/2),
+# ]
 
 # def make_robot_sdf(base_sdf_path: str, ns: str) -> str:
 #     """
