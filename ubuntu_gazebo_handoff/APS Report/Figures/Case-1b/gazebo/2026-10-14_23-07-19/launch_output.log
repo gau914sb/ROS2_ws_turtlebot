@@ -1,0 +1,135 @@
+[INFO] [launch]: All log files can be found below /home/gaurav/.ros/log/2026-10-14-23-07-20-012691-gaurav-Aspire-A715-75G-16007
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gazebo-1]: process started with pid [16010]
+[gazebo-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SimulationRunner.cc:734] [0m[1;33mFound additional publishers on /stats,[0m[1;33m using namespaced stats topic only[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SimulationRunner.cc:768] [0m[1;33mFound additional publishers on /clock,[0m[1;33m using namespaced clock topic only[0m[1;33m[0m
+[INFO] [robot_state_publisher-2]: process started with pid [16022]
+[INFO] [create-3]: process started with pid [16023]
+[INFO] [parameter_bridge-4]: process started with pid [16024]
+[INFO] [create-5]: process started with pid [16025]
+[INFO] [create-6]: process started with pid [16026]
+[robot_state_publisher-2] [INFO] [1791999445.485095179] [bot_0.bot_0.robot_state_publisher]: Robot initialized
+[create-3] [INFO] [1791999445.514076483] [spawn_bot_0]: Requesting list of world names.
+[create-5] [INFO] [1791999445.519869095] [spawn_cam_top]: Requesting list of world names.
+[create-6] [INFO] [1791999445.523435464] [spawn_cam_iso]: Requesting list of world names.
+[create-3] [INFO] [1791999445.816544134] [spawn_bot_0]: Entity creation successful.
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="turtlebot3_burger"]/link[@name="base_scan"]/sensor[@name="hls_lfcd_lds"]/gz_frame_id:/tmp/tb3case_j3a33_3s_bot_0.sdf:L141]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[create-6] [INFO] [1791999445.916626809] [spawn_cam_iso]: Entity creation successful.
+[INFO] [create-3]: process has finished cleanly [pid 16023]
+[create-5] [INFO] [1791999446.016975929] [spawn_cam_top]: Entity creation successful.
+[INFO] [create-6]: process has finished cleanly [pid 16026]
+[INFO] [create-5]: process has finished cleanly [pid 16025]
+[gazebo-1] libEGL warning: pci id for fd 53: 10de:1f99, driver (null)
+[gazebo-1] 
+[gazebo-1] pci id for fd 54: 10de:1f99, driver (null)
+[gazebo-1] pci id for fd 55: 10de:1f99, driver (null)
+[gazebo-1] libEGL warning: egl: failed to create dri2 screen
+[gazebo-1] libEGL warning: pci id for fd 53: 10de:1f99, driver (null)
+[gazebo-1] 
+[gazebo-1] pci id for fd 54: 10de:1f99, driver (null)
+[gazebo-1] pci id for fd 55: 10de:1f99, driver (null)
+[gazebo-1] libEGL warning: egl: failed to create dri2 screen
+[gazebo-1] libEGL warning: pci id for fd 53: 10de:1f99, driver (null)
+[gazebo-1] 
+[INFO] [parameter_bridge-7]: process started with pid [16164]
+[gazebo-1] [1;33m[Wrn] [Ogre2Camera.cc:423] [0m[1;33mOgre2Camera::SetVisibilityMask: Mask bits [0m[1;33mc0000000[0m[1;33m are set but will be ignored as they conflict with the [0m[1;33mreserved bits used internally by the ogre2 backend.[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [Ogre2Camera.cc:423] [0m[1;33mOgre2Camera::SetVisibilityMask: Mask bits [0m[1;33mc0000000[0m[1;33m are set but will be ignored as they conflict with the [0m[1;33mreserved bits used internally by the ogre2 backend.[0m[1;33m[0m
+[parameter_bridge-4] [INFO] [1791999446.531665831] [bridge_bot_0]: Creating GZ->ROS Bridge: [clock (gz.msgs.Clock) -> clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1791999446.533391401] [bridge_bot_0]: Creating ROS->GZ Bridge: [/bot_0/cmd_vel (geometry_msgs/msg/Twist) -> /bot_0/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1791999446.535600594] [bridge_bot_0]: Creating GZ->ROS Bridge: [/bot_0/ground_truth_odom (gz.msgs.Odometry) -> /bot_0/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1791999446.537716833] [bridge_bot_0]: Creating GZ->ROS Bridge: [/bot_0/tf (gz.msgs.Pose_V) -> /bot_0/tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1791999446.539635928] [bridge_bot_0]: Creating GZ->ROS Bridge: [/bot_0/joint_states (gz.msgs.Model) -> /bot_0/joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[INFO] [robot_state_publisher-8]: process started with pid [16185]
+[INFO] [create-9]: process started with pid [16186]
+[INFO] [parameter_bridge-10]: process started with pid [16187]
+[robot_state_publisher-8] [INFO] [1791999447.490262091] [bot_1.bot_1.robot_state_publisher]: Robot initialized
+[parameter_bridge-7] [INFO] [1791999447.499268843] [bridge_cameras]: Creating GZ->ROS Bridge: [/cam_top/image (gz.msgs.Image) -> /cam_top/image (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-7] [INFO] [1791999447.503260235] [bridge_cameras]: Creating GZ->ROS Bridge: [/cam_iso/image (gz.msgs.Image) -> /cam_iso/image (sensor_msgs/msg/Image)] (Lazy 0)
+[create-9] [INFO] [1791999447.503279074] [spawn_bot_1]: Requesting list of world names.
+[create-9] [INFO] [1791999447.705136458] [spawn_bot_1]: Entity creation successful.
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="turtlebot3_burger"]/link[@name="base_scan"]/sensor[@name="hls_lfcd_lds"]/gz_frame_id:/tmp/tb3case_xm1x1y0d_bot_1.sdf:L141]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[INFO] [create-9]: process has finished cleanly [pid 16186]
+[INFO] [python3-11]: process started with pid [16252]
+[parameter_bridge-10] [INFO] [1791999448.522725593] [bridge_bot_1]: Creating ROS->GZ Bridge: [/bot_1/cmd_vel (geometry_msgs/msg/Twist) -> /bot_1/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1791999448.526836761] [bridge_bot_1]: Creating GZ->ROS Bridge: [/bot_1/ground_truth_odom (gz.msgs.Odometry) -> /bot_1/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1791999448.529508703] [bridge_bot_1]: Creating GZ->ROS Bridge: [/bot_1/tf (gz.msgs.Pose_V) -> /bot_1/tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1791999448.532231171] [bridge_bot_1]: Creating GZ->ROS Bridge: [/bot_1/joint_states (gz.msgs.Model) -> /bot_1/joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[python3-11] [INFO] [1791999449.224032979] [camera_recorder]: Recording /cam_top/image -> /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_top.mp4, /cam_iso/image -> /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_iso.mp4 at 15.0 fps
+[python3-11] [INFO] [1791999449.264434842] [camera_recorder]: iso: opened writer /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_iso.mp4 (960x540)
+[python3-11] [INFO] [1791999449.271377773] [camera_recorder]: top: opened writer /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_top.mp4 (960x540)
+[INFO] [robot_state_publisher-12]: process started with pid [16274]
+[INFO] [create-13]: process started with pid [16275]
+[INFO] [parameter_bridge-14]: process started with pid [16276]
+[robot_state_publisher-12] [INFO] [1791999449.507573129] [bot_2.bot_2.robot_state_publisher]: Robot initialized
+[create-13] [INFO] [1791999449.522347917] [spawn_bot_2]: Requesting list of world names.
+[create-13] [INFO] [1791999449.824466855] [spawn_bot_2]: Entity creation successful.
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="turtlebot3_burger"]/link[@name="base_scan"]/sensor[@name="hls_lfcd_lds"]/gz_frame_id:/tmp/tb3case_okyd49mt_bot_2.sdf:L141]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[INFO] [create-13]: process has finished cleanly [pid 16275]
+[parameter_bridge-14] [INFO] [1791999450.549963127] [bridge_bot_2]: Creating ROS->GZ Bridge: [/bot_2/cmd_vel (geometry_msgs/msg/Twist) -> /bot_2/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-14] [INFO] [1791999450.554194911] [bridge_bot_2]: Creating GZ->ROS Bridge: [/bot_2/ground_truth_odom (gz.msgs.Odometry) -> /bot_2/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-14] [INFO] [1791999450.558673202] [bridge_bot_2]: Creating GZ->ROS Bridge: [/bot_2/tf (gz.msgs.Pose_V) -> /bot_2/tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-14] [INFO] [1791999450.562387092] [bridge_bot_2]: Creating GZ->ROS Bridge: [/bot_2/joint_states (gz.msgs.Model) -> /bot_2/joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[INFO] [robot_state_publisher-15]: process started with pid [16344]
+[INFO] [create-16]: process started with pid [16345]
+[INFO] [parameter_bridge-17]: process started with pid [16346]
+[robot_state_publisher-15] [INFO] [1791999451.517159762] [bot_3.bot_3.robot_state_publisher]: Robot initialized
+[create-16] [INFO] [1791999451.537278942] [spawn_bot_3]: Requesting list of world names.
+[create-16] [INFO] [1791999451.838997288] [spawn_bot_3]: Entity creation successful.
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="turtlebot3_burger"]/link[@name="base_scan"]/sensor[@name="hls_lfcd_lds"]/gz_frame_id:/tmp/tb3case_51jks12g_bot_3.sdf:L141]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[INFO] [create-16]: process has finished cleanly [pid 16345]
+[parameter_bridge-17] [INFO] [1791999452.560147525] [bridge_bot_3]: Creating ROS->GZ Bridge: [/bot_3/cmd_vel (geometry_msgs/msg/Twist) -> /bot_3/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-17] [INFO] [1791999452.564323954] [bridge_bot_3]: Creating GZ->ROS Bridge: [/bot_3/ground_truth_odom (gz.msgs.Odometry) -> /bot_3/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-17] [INFO] [1791999452.568215970] [bridge_bot_3]: Creating GZ->ROS Bridge: [/bot_3/tf (gz.msgs.Pose_V) -> /bot_3/tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-17] [INFO] [1791999452.572612418] [bridge_bot_3]: Creating GZ->ROS Bridge: [/bot_3/joint_states (gz.msgs.Model) -> /bot_3/joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[INFO] [python3-18]: process started with pid [16417]
+[python3-18] [INFO] [1791999459.268659755] [formation_controller_case]: Case Case-1b: collision_avoidance=False, v_max=0.055, omega_max=0.13, length=0.25, Rc=1.6 (lower=0.295, upper=1.465), conv_tol=0.05, max_duration=260.0s
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[parameter_bridge-17] [INFO] [1792000102.774531543] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-7] [INFO] [1792000102.774554753] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-14] [INFO] [1792000102.774559793] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-4] [INFO] [1792000102.774598322] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-2] [INFO] [1792000102.774601825] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-15] [INFO] [1792000102.775091984] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-12] [INFO] [1792000102.775131909] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [python3-18]: sending signal 'SIGINT' to process[python3-18]
+[INFO] [parameter_bridge-17]: sending signal 'SIGINT' to process[parameter_bridge-17]
+[INFO] [robot_state_publisher-15]: sending signal 'SIGINT' to process[robot_state_publisher-15]
+[INFO] [parameter_bridge-14]: sending signal 'SIGINT' to process[parameter_bridge-14]
+[INFO] [robot_state_publisher-12]: sending signal 'SIGINT' to process[robot_state_publisher-12]
+[ERROR] [robot_state_publisher-15]: process has died [pid 16344, exit code -2, cmd '/opt/ros/jazzy/lib/robot_state_publisher/robot_state_publisher --ros-args -r __node:=robot_state_publisher -r __ns:=/bot_3/bot_3 --params-file /tmp/launch_params_vxss0rrx'].
+[INFO] [python3-11]: sending signal 'SIGINT' to process[python3-11]
+[ERROR] [robot_state_publisher-12]: process has died [pid 16274, exit code -2, cmd '/opt/ros/jazzy/lib/robot_state_publisher/robot_state_publisher --ros-args -r __node:=robot_state_publisher -r __ns:=/bot_2/bot_2 --params-file /tmp/launch_params_ez5gqlen'].
+[INFO] [parameter_bridge-10]: sending signal 'SIGINT' to process[parameter_bridge-10]
+[INFO] [robot_state_publisher-8]: sending signal 'SIGINT' to process[robot_state_publisher-8]
+[INFO] [parameter_bridge-7]: sending signal 'SIGINT' to process[parameter_bridge-7]
+[ERROR] [robot_state_publisher-8]: process has died [pid 16185, exit code -2, cmd '/opt/ros/jazzy/lib/robot_state_publisher/robot_state_publisher --ros-args -r __node:=robot_state_publisher -r __ns:=/bot_1/bot_1 --params-file /tmp/launch_params_85y1r2a1'].
+[INFO] [parameter_bridge-4]: sending signal 'SIGINT' to process[parameter_bridge-4]
+[INFO] [robot_state_publisher-2]: sending signal 'SIGINT' to process[robot_state_publisher-2]
+[ERROR] [python3-11]: process has died [pid 16252, exit code -2, cmd 'python3 /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/gazebo_sim/camera_recorder.py --ros-args -p top_topic:=/cam_top/image -p iso_topic:=/cam_iso/image -p top_output:=/home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_top.mp4 -p iso_output:=/home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_iso.mp4 -p fps:=15.0'].
+[INFO] [gazebo-1]: sending signal 'SIGINT' to process[gazebo-1]
+[python3-18] [INFO] [1792000102.777094941] [formation_controller_case]: Wrote 0 rows to /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/log_data.csv
+[python3-18] Failed to publish log message to rosout: publisher's context is invalid, at ./src/rcl/publisher.c:423
+[python3-18] [INFO] [1792000102.778576966] [formation_controller_case]: Wrote /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/control_status.json
+[python3-18] Failed to publish log message to rosout: publisher's context is invalid, at ./src/rcl/publisher.c:423
+[ERROR] [robot_state_publisher-2]: process has died [pid 16022, exit code -2, cmd '/opt/ros/jazzy/lib/robot_state_publisher/robot_state_publisher --ros-args -r __node:=robot_state_publisher -r __ns:=/bot_0/bot_0 --params-file /tmp/launch_params_sygwyamg'].
+[parameter_bridge-10] [INFO] [1792000102.779055770] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-8] [INFO] [1792000102.779679829] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[python3-11] [INFO] [1792000102.785371947] [camera_recorder]: iso: wrote 8542 frames to /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_iso.mp4
+[python3-11] Failed to publish log message to rosout: publisher's context is invalid, at ./src/rcl/publisher.c:423
+[python3-11] [INFO] [1792000102.787276400] [camera_recorder]: top: wrote 8547 frames to /home/gaurav/ROS2_ws_turtlebot/ubuntu_gazebo_handoff/APS Report/Figures/Case-1b/gazebo/2026-10-14_23-07-19/camera_top.mp4
+[python3-11] Failed to publish log message to rosout: publisher's context is invalid, at ./src/rcl/publisher.c:423
+[parameter_bridge-17] [INFO] [1792000102.808538040] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-14] [INFO] [1792000102.816258242] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-10] [INFO] [1792000102.827364855] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-7] [INFO] [1792000102.839347149] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-4] [INFO] [1792000102.843101533] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [parameter_bridge-14]: process has finished cleanly [pid 16276]
+[INFO] [parameter_bridge-4]: process has finished cleanly [pid 16024]
+[INFO] [parameter_bridge-10]: process has finished cleanly [pid 16187]
+[INFO] [parameter_bridge-17]: process has finished cleanly [pid 16346]
+[INFO] [parameter_bridge-7]: process has finished cleanly [pid 16164]
+[ERROR] [gazebo-1]: process has died [pid 16010, exit code -2, cmd 'ruby /opt/ros/jazzy/opt/gz_tools_vendor/bin/gz sim -r -s -v2 /home/gaurav/ROS2_ws_turtlebot/install/turtlebot3_gazebo/share/turtlebot3_gazebo/worlds/empty_world.world --force-version 8'].
+[INFO] [launch]: process[gazebo-1] was required: shutting down launched system
+[INFO] [python3-18]: process has finished cleanly [pid 16417]
