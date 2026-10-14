@@ -1,0 +1,12 @@
+case: Case-1b
+collision_avoidance: False
+start_wall_clock: 2026-10-14T22:30:27.353594
+end_wall_clock: 2026-10-14T22:35:14.391847
+wall_duration_s: 287.0
+converged: False
+stop_reason: timeout
+final_time_s: 260.01990389823914
+rows_logged: 2345
+conv_tol: 0.08
+max_duration: 260.0
+git_commit: 0f5235e8cd162681579fb4c5c1702094bca2a7e7
