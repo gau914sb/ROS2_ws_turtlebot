@@ -1,0 +1,14 @@
+case: Case-4
+collision_avoidance: True
+start_wall_clock: 2026-10-14T22:55:42.760581
+end_wall_clock: 2026-10-14T23:01:56.811920
+wall_duration_s: 374.1
+converged: None
+stop_reason: None
+final_time_s: None
+rows_logged: None
+conv_tol: None
+max_duration: None
+git_commit: 01ee5502596009e74b1437984c2f1b6ea6948154
+problems:
+  - control_status.json missing
