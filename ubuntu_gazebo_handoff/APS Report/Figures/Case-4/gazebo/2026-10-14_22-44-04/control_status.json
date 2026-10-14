@@ -1,0 +1,10 @@
+{
+  "case": "Case-4",
+  "collision_avoidance": true,
+  "converged": false,
+  "stop_reason": "timeout",
+  "final_time_s": 280.01971340179443,
+  "rows_logged": 2534,
+  "conv_tol": 0.08,
+  "max_duration": 280.0
+}
