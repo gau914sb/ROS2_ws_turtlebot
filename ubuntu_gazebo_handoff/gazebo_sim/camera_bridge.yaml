@@ -1,0 +1,15 @@
+# Bridge config for the two documentation camera feeds (top-down + isometric).
+# Topics are absolute and case-independent, so this file is static (not
+# per-case, unlike the robot bridge yamls in turtlebot3_gazebo/params/).
+
+- ros_topic_name: "/cam_top/image"
+  gz_topic_name: "/cam_top/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/cam_iso/image"
+  gz_topic_name: "/cam_iso/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS

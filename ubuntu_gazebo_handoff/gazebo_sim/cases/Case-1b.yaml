@@ -1,0 +1,14 @@
+# Real-hardware initial conditions for Case-1b (collision avoidance: OFF).
+# x, y in metres, yaw in radians, world frame. First logged row of the real
+# APS Report/Figures/Case-1b/log_data.csv run.
+case: Case-1b
+collision_avoidance: false
+conv_tol: 0.050
+# Real run converged at ~154.7s; generous margin for Gazebo dynamics differing
+# from the real unicycle/EKF loop.
+max_duration: 260.0
+robots:
+  bot_0: {x: 0.6705, y: 0.1398, yaw: 1.4427}
+  bot_1: {x: -0.6370, y: 0.1786, yaw: 1.6645}
+  bot_2: {x: -0.6128, y: -0.1347, yaw: -1.2970}
+  bot_3: {x: 0.6413, y: -0.1755, yaw: -1.4689}

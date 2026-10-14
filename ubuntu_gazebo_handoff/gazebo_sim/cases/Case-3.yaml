@@ -1,0 +1,15 @@
+# Real-hardware initial conditions for Case-3 (collision avoidance: OFF).
+# This is the real-collision case; the real run ended early (~11.8s) with
+# bot_0/bot_2 nearly colliding. Do NOT wait for a convergence that was never
+# going to happen -- short timeout only.
+# x, y in metres, yaw in radians, world frame. First logged row of the real
+# APS Report/Figures/Case-3/log_data.csv run.
+case: Case-3
+collision_avoidance: false
+conv_tol: 0.050
+max_duration: 40.0
+robots:
+  bot_0: {x: -0.2759, y: -0.0533, yaw: 1.3832}
+  bot_1: {x: -0.6187, y: 0.4192, yaw: -0.6873}
+  bot_2: {x: 0.1074, y: -0.2319, yaw: 1.9618}
+  bot_3: {x: -0.3406, y: -0.3905, yaw: -1.8267}
