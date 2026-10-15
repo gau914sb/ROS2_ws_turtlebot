@@ -1,0 +1,11 @@
+{
+  "case": "Case-3",
+  "law_variant": 1,
+  "collision_avoidance": false,
+  "converged": false,
+  "stop_reason": "timeout",
+  "final_time_s": 40.0,
+  "rows_logged": 360,
+  "conv_tol": 0.05,
+  "max_duration": 40.0
+}
