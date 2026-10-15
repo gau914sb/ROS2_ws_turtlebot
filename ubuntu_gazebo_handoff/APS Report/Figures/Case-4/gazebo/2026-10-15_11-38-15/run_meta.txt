@@ -1,0 +1,12 @@
+case: Case-4
+law_variant: 2
+start_wall_clock: 2026-10-15T11:38:15.716019
+end_wall_clock: 2026-10-15T11:45:39.793203
+wall_duration_s: 444.1
+converged: False
+stop_reason: timeout
+final_time_s: 280.0
+rows_logged: 2527
+conv_tol: 0.05
+max_duration: 280.0
+git_commit: 6dda8b838ba399531d8ef36b762e6043f65366df
