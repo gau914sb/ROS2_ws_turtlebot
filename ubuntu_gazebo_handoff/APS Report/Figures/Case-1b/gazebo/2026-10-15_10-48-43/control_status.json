@@ -1,0 +1,11 @@
+{
+  "case": "Case-1b",
+  "law_variant": 3,
+  "collision_avoidance": false,
+  "converged": true,
+  "stop_reason": "converged",
+  "final_time_s": 55.491,
+  "rows_logged": 505,
+  "conv_tol": 0.05,
+  "max_duration": 260.0
+}
