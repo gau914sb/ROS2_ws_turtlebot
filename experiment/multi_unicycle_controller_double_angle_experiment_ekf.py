@@ -979,11 +979,11 @@ class MultiUnicycleController(Node):
         # ==================================
         
         # VARIANT 1: Connectivity Preservation Only
-        d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
+        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
         
         # VARIANT 2: Connectivity Preservation + Collision Avoidance 
         # Uncomment the line below to activate collision avoidance
-        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
+        d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
 
         # Variant 3
         # d_dt = -10000000 * (self.Hbar_Nset.T @ R_psi_N @ E)

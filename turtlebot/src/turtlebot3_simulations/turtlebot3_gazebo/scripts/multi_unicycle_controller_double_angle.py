@@ -126,10 +126,10 @@ class MultiUnicycleController(Node):
         self.H_Mset = np.array([[-1, 0, 1, 0]])
         self.Hbar_Mset = np.kron(self.H_Mset, np.eye(2))
 
-        self.v_max = 0.22  # Max linear velocity
-        self.omega_max = 2.50  # Max angular velocity
+        self.v_max = 0.055  # Max linear velocity
+        self.omega_max = 0.13  # Max angular velocity
         self.K_p_w = 1.0  # Angular velocity gain
-        self.length = 0.1
+        self.length = 0.25
 
         self.estar = self.Hbar_Nset @ self.pstar
 
@@ -141,7 +141,7 @@ class MultiUnicycleController(Node):
 
         self.r = 0.135 # Agent radius
         self.Rs = 0.16  # Safety radius
-        self.Rc = 1.5 # Connectivity radius
+        self.Rc = 1.6 # Connectivity radius
         self.Rcrit = 0.4 # Critical collision radius
 
         # Inter-agent center-to-center distance bounds (used for distance-error logging)
@@ -670,11 +670,11 @@ class MultiUnicycleController(Node):
         # ==================================
         
         # VARIANT 1: Connectivity Preservation Only
-        d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
+        # d_dt = - (self.Hbar_Nset.T @ R_psi_N @ xi)
         
         # VARIANT 2: Connectivity Preservation + Collision Avoidance 
         # Uncomment the line below to activate collision avoidance
-        # d_dt = - 10000000 * (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
+        d_dt = - 10000000 * (self.Hbar_Nset.T @ R_psi_N @ xi + self.Hbar_Mset.T @ R_psi_M @ xi_beta)
 
         # Variant 3
         # d_dt = -10000000 * (self.Hbar_Nset.T @ R_psi_N @ E)

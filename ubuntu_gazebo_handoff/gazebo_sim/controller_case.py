@@ -8,40 +8,45 @@ modify or import the existing ad hoc controller scripts in
 turtlebot3_gazebo/scripts/.
 
 Implements the bearing-based single-integrator formation law (double-angle
-visual-cone parameterization) with switchable collision avoidance, exactly
-as specified in UBUNTU_GAZEBO_TASK.md section 2 and as implemented in
-`Colab with Sushmita/sim_timesynced_cases.m` (the MATLAB reference, which is
-itself the exact-parameter source: pstar, graph edges, r/Rs/Rc/Rcrit,
-v_max/omega_max/length/conv_tol all match that file).
+visual-cone parameterization), matching the exact per-case LAW VARIANT --
+NOT a uniform law across cases. The authoritative source for which formula
+each case actually used is experiment/multi_unicycle_controller_double_
+angle_experiment_ekf.py (the script that drove the real robots), not
+turtlebot3_gazebo/scripts/multi_unicycle_controller_double_angle.py (a demo
+copy whose Variant 2 has an extra 10,000,000 gain the real hardware script
+does not):
 
-Differences from the existing turtlebot3_gazebo/scripts controllers this was
-modeled after:
-  - Rc = 1.6 (not 1.5), v_max = 0.055 (not 0.22), omega_max = 0.13 (not 2.50),
-    length = 0.25 (not 0.1) -- matching the real hardware parameters.
-  - Collision avoidance is a runtime ROS parameter, not a commented-out code
-    branch, and the combined law has no extra scaling constant (the
-    existing scripts' commented-out "Variant 2" multiplies by 10,000,000,
-    which has no basis in the MATLAB reference and was never exercised).
-  - Explicit convergence stop (all |e_i| <= conv_tol) and a hard timeout,
-    matching the real controller's stop condition, each writing a status
-    file an external orchestrator (run_case.py) can poll for.
-  - CSV schema matches the real log_data.csv exactly (see UBUNTU_GAZEBO_TASK.md
-    section 3) so plot_case_from_csv.py / plot_*_overlay_generic.py work
-    unmodified.
+  law_variant 1 (Case-2, Case-3): connectivity only, K-barrier-scaled xi,
+    no collision avoidance, no gain.
+        d_dt = -(Hbar_Nset.T @ R_psi_N @ xi)
+
+  law_variant 2 (Case-4): connectivity + collision avoidance, no gain --
+    matches the real hardware script's commented Variant 2 exactly.
+        d_dt = -(Hbar_Nset.T @ R_psi_N @ xi + Hbar_Mset.T @ R_psi_M @ xi_beta)
+
+  law_variant 3 (Case-1b): connectivity only, but driven by the raw
+    per-edge error E (not the K-barrier xi), with a 10,000,000 gain --
+    identical in both the real hardware script and the demo script.
+        d_dt = -10,000,000 * (Hbar_Nset.T @ R_psi_N @ E)
+
+Parameters (r/Rs/Rc/Rcrit, v_max/omega_max/length/conv_tol, pstar, graph
+edges) match UBUNTU_GAZEBO_TASK.md section 2 / `Colab with
+Sushmita/sim_timesynced_cases.m` exactly -- those were never in question,
+only which d_dt formula each case actually used.
 
 ROS parameters (set via --ros-args -p from the launch file):
-  case_name          (string)  default 'unknown'
-  collision_avoidance (bool)   default False
-  log_dir            (string)  default '/tmp' -- directory to write
-                                log_data.csv and control_status.json into
-  conv_tol           (double)  default 0.080
-  max_duration       (double)  default 240.0  -- hard timeout, seconds
-  log_interval       (double)  default 0.1    -- CSV row cadence, seconds
+  case_name    (string)  default 'unknown'
+  law_variant  (int)     default 1 -- 1, 2, or 3 (see above)
+  log_dir      (string)  default '/tmp' -- directory to write
+                          log_data.csv and control_status.json into
+  conv_tol     (double)  default 0.080
+  max_duration (double)  default 240.0  -- hard timeout, seconds
+  log_interval (double)  default 0.1    -- CSV row cadence, seconds
 """
 
 import json
 import os
-import time
+import signal
 from math import sin, cos, atan2, pi, acos, asin
 from typing import Dict, List, Tuple
 
@@ -82,14 +87,17 @@ class CaseFormationController(Node):
         super().__init__('formation_controller_case')
 
         self.declare_parameter('case_name', 'unknown')
-        self.declare_parameter('collision_avoidance', False)
+        self.declare_parameter('law_variant', 1)
         self.declare_parameter('log_dir', '/tmp')
         self.declare_parameter('conv_tol', 0.080)
         self.declare_parameter('max_duration', 240.0)
         self.declare_parameter('log_interval', 0.1)
 
         self.case_name = self.get_parameter('case_name').value
-        self.collision_avoidance = bool(self.get_parameter('collision_avoidance').value)
+        self.law_variant = int(self.get_parameter('law_variant').value)
+        if self.law_variant not in (1, 2, 3):
+            raise ValueError(f'law_variant must be 1, 2, or 3, got {self.law_variant}')
+        self.collision_avoidance = (self.law_variant == 2)  # for logging/status only
         self.log_dir = self.get_parameter('log_dir').value
         self.conv_tol = float(self.get_parameter('conv_tol').value)
         self.max_duration = float(self.get_parameter('max_duration').value)
@@ -166,7 +174,8 @@ class CaseFormationController(Node):
         self.final_time = 0.0
 
         self.get_logger().info(
-            f'Case {self.case_name}: collision_avoidance={self.collision_avoidance}, '
+            f'Case {self.case_name}: law_variant={self.law_variant} '
+            f'(collision_avoidance={self.collision_avoidance}), '
             f'v_max={self.v_max}, omega_max={self.omega_max}, length={self.length}, '
             f'Rc={self.Rc} (lower={self.dist_lower_bound:.3f}, upper={self.dist_upper_bound:.3f}), '
             f'conv_tol={self.conv_tol}, max_duration={self.max_duration}s'
@@ -224,9 +233,9 @@ class CaseFormationController(Node):
             return
 
         if self.start_time is None:
-            self.start_time = time.time()
+            self.start_time = self.get_clock().now()
 
-        now = time.time() - self.start_time
+        now = (self.get_clock().now() - self.start_time).nanoseconds / 1e9
 
         p = self._positions().flatten()
         theta = self._headings()
@@ -276,9 +285,14 @@ class CaseFormationController(Node):
             row += [self.dist_lower_bound, self.dist_upper_bound]
             self.rows.append(row)
 
+    # Gain used verbatim from multi_unicycle_controller_double_angle.py's
+    # commented-out "VARIANT 2" / "Variant 3" lines, for law_variant 2 and 3.
+    _GIANT_GAIN = 10_000_000
+
     def _formation_velocity(self, p, e_N, edge_dist):
         R_psi_N = None
         xi = np.zeros(5)
+        E = np.zeros(5)
         for c in range(5):
             e_vec = e_N[2 * c:2 * c + 2].reshape(2, 1)
             dij = edge_dist[c]
@@ -299,39 +313,54 @@ class CaseFormationController(Node):
             R_psi_N = block if R_psi_N is None else block_diag(R_psi_N, block)
 
             E_ij = (cos(psi_ij)) ** 2 - (cos(self.psi_star[c])) ** 2
+            E[c] = E_ij
             K = self.Kc[c] if E_ij > 0 else self.Ks[c]
             denom = K ** 2 - E_ij ** 2
             xi[c] = 0.0 if abs(denom) < 1e-6 else 4 * E_ij / denom
 
-        d_dt = -(self.Hbar_Nset.T @ R_psi_N @ xi.reshape(-1, 1))
+        if self.law_variant == 3:
+            # Variant 3 (Case-1b): raw-E-driven, no collision avoidance.
+            d_dt = -self._GIANT_GAIN * (self.Hbar_Nset.T @ R_psi_N @ E.reshape(-1, 1))
+            return d_dt.flatten()
 
-        if self.collision_avoidance:
-            e_M = self.Hbar_Mset @ p
-            e_vec = e_M.reshape(2, 1)
-            dik = float(np.linalg.norm(e_vec))
-            if dik > 1e-6:
-                asin_arg = float(np.clip(self.r / dik, -1.0, 1.0))
-                psi_ik = 2 * asin(asin_arg)
-                gik = e_vec / dik
-                Rot_R = np.array([[cos(psi_ik / 2), -sin(psi_ik / 2)], [sin(psi_ik / 2), cos(psi_ik / 2)]])
-                Rot_L = np.array([[cos(psi_ik / 2), sin(psi_ik / 2)], [-sin(psi_ik / 2), cos(psi_ik / 2)]])
-                g_iRk = Rot_R @ gik
-                g_iLk = Rot_L @ gik
-                Pg_iRk = np.eye(2) - (g_iRk @ g_iRk.T)
-                Pg_iLk = np.eye(2) - (g_iLk @ g_iLk.T)
-                f_gik = (Pg_iLk @ g_iRk) + (Pg_iRk @ g_iLk)
-                f_psi_ik = 0.5 * sin(2 * psi_ik) / (1 + cos(psi_ik))
-                R_psi_M = f_psi_ik * f_gik
+        connectivity_term = self.Hbar_Nset.T @ R_psi_N @ xi.reshape(-1, 1)
 
-                if psi_ik > self.psi_crit:
-                    beta_ik = (cos(psi_ik)) ** 2 - (cos(self.psi_crit)) ** 2
-                else:
-                    beta_ik = 0.0
-                denom_beta = self.delta ** 2 - beta_ik ** 2
-                xi_beta = 0.0 if abs(denom_beta) < 1e-6 else 4 * beta_ik / denom_beta
+        if self.law_variant == 1:
+            # Variant 1 (Case-2, Case-3): connectivity only, no CA, no gain.
+            d_dt = -connectivity_term
+            return d_dt.flatten()
 
-                d_dt = d_dt - (self.Hbar_Mset.T @ R_psi_M @ np.array([[xi_beta]]))
+        # law_variant == 2 (Case-4): connectivity + collision avoidance, no
+        # gain -- matches experiment/multi_unicycle_controller_double_angle_
+        # experiment_ekf.py's commented Variant 2 exactly (that's the script
+        # that actually drove the real robots; the 10,000,000 gain only
+        # appears in turtlebot3_gazebo/scripts/'s demo copy of Variant 2,
+        # never in the real hardware controller).
+        e_M = self.Hbar_Mset @ p
+        e_vec = e_M.reshape(2, 1)
+        dik = float(np.linalg.norm(e_vec))
+        xi_beta = 0.0
+        R_psi_M = np.zeros((2, 2))
+        if dik > 1e-6:
+            asin_arg = float(np.clip(self.r / dik, -1.0, 1.0))
+            psi_ik = 2 * asin(asin_arg)
+            gik = e_vec / dik
+            Rot_R = np.array([[cos(psi_ik / 2), -sin(psi_ik / 2)], [sin(psi_ik / 2), cos(psi_ik / 2)]])
+            Rot_L = np.array([[cos(psi_ik / 2), sin(psi_ik / 2)], [-sin(psi_ik / 2), cos(psi_ik / 2)]])
+            g_iRk = Rot_R @ gik
+            g_iLk = Rot_L @ gik
+            Pg_iRk = np.eye(2) - (g_iRk @ g_iRk.T)
+            Pg_iLk = np.eye(2) - (g_iLk @ g_iLk.T)
+            f_gik = (Pg_iLk @ g_iRk) + (Pg_iRk @ g_iLk)
+            f_psi_ik = 0.5 * sin(2 * psi_ik) / (1 + cos(psi_ik))
+            R_psi_M = f_psi_ik * f_gik
 
+            beta_ik = (cos(psi_ik)) ** 2 - (cos(self.psi_crit)) ** 2 if psi_ik > self.psi_crit else 0.0
+            denom_beta = self.delta ** 2 - beta_ik ** 2
+            xi_beta = 0.0 if abs(denom_beta) < 1e-6 else 4 * beta_ik / denom_beta
+
+        ca_term = self.Hbar_Mset.T @ R_psi_M @ np.array([[xi_beta]])
+        d_dt = -(connectivity_term + ca_term)
         return d_dt.flatten()
 
     # ------------------------------------------------------------------
@@ -362,6 +391,7 @@ class CaseFormationController(Node):
 
         status = {
             'case': self.case_name,
+            'law_variant': self.law_variant,
             'collision_avoidance': self.collision_avoidance,
             'converged': self.converged,
             'stop_reason': self.stop_reason or 'external_shutdown',
@@ -387,6 +417,12 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        # Once we start cleaning up, a repeated/slow-arriving SIGINT (or the
+        # orchestrator's follow-up SIGTERM) must not be able to interrupt us
+        # mid-write -- that's how a prior run ended up with log_data.csv but
+        # no control_status.json. Only SIGKILL can still stop this section.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         try:
             node.stop_all()
         except BaseException:

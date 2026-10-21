@@ -33,10 +33,25 @@ PLOT_DIR = os.path.join(HANDOFF_DIR, 'Claude testing', 'algo testing')
 
 VALID_CASES = ['Case-1b', 'Case-2', 'Case-3', 'Case-4']
 
+# Fixed, distinct ROS_DOMAIN_ID per case so multiple cases can run fully
+# concurrently on the same machine: each case's robots/bridges/controller/
+# camera topics (e.g. /bot_0/cmd_vel) are identically named across cases,
+# and ROS_DOMAIN_ID is what keeps two runs' DDS graphs from seeing each
+# other at all (GZ_PARTITION below does the equivalent for Gazebo's own
+# transport). Arbitrary high values, chosen only to avoid colliding with
+# whatever ROS_DOMAIN_ID this shell already had set for other work.
+DOMAIN_ID_BY_CASE = {'Case-1b': 61, 'Case-2': 62, 'Case-3': 63, 'Case-4': 64}
+
 # Extra wall-clock margin (beyond the case's max_duration) allowed for
 # Gazebo/node startup and clean shutdown before run_case.py gives up waiting
 # for control_status.json and force-terminates the launch.
-STARTUP_SHUTDOWN_MARGIN_S = 90.0
+#
+# The controller's internal timeout is measured in SIMULATED time (/clock),
+# not wall-clock -- correct, but it means this margin must absorb however
+# much slower than real-time Gazebo is actually running (real_time_factor
+# < 1 under host load), not just node startup/shutdown overhead. Generous
+# on purpose: better to wait longer than to truncate save_outputs().
+STARTUP_SHUTDOWN_MARGIN_S = 400.0
 
 
 def run(cmd, **kwargs):
@@ -84,7 +99,7 @@ def main():
     case_yaml = os.path.join(GAZEBO_SIM_DIR, 'cases', f'{case}.yaml')
     with open(case_yaml, 'r') as f:
         case_cfg = yaml.safe_load(f)
-    collision_avoidance = bool(case_cfg['collision_avoidance'])
+    law_variant = int(case_cfg['law_variant'])
     max_duration = float(case_cfg.get('max_duration', 240.0))
 
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -105,10 +120,26 @@ def main():
         f'camera_iso_output:={cam_iso}',
     ]
 
+    # Isolate this run's Gazebo Transport discovery domain. Without this, a
+    # gz-sim instance from a just-terminated prior run (especially one that
+    # needed SIGTERM/SIGKILL to go down) can leave stale discovery state that
+    # a new instance started moments later picks up as "additional publishers
+    # on /clock", silently breaking that topic for the whole run -- this is
+    # exactly what happened on a Case-1b run that logged 0 rows in ~650s
+    # wall-clock. A unique GZ_PARTITION per run eliminates any cross-talk.
+    run_env = os.environ.copy()
+    run_env['GZ_PARTITION'] = f'case-{case}-{timestamp}'
+    # Isolate this run's ROS2/DDS graph too, so this case's robot/camera/
+    # controller topics (identically named across cases, e.g. /bot_0/cmd_vel)
+    # can't be seen by or collide with another case running at the same time.
+    run_env['ROS_DOMAIN_ID'] = str(DOMAIN_ID_BY_CASE[case])
+
     start_wall = datetime.now()
     log_file_path = os.path.join(out_dir, 'launch_output.log')
     log_file = open(log_file_path, 'w')
-    proc = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True)
+    proc = subprocess.Popen(
+        cmd, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True, env=run_env
+    )
     print(f'Launched (pid {proc.pid}), log: {log_file_path}')
 
     hard_cutoff = max_duration + STARTUP_SHUTDOWN_MARGIN_S
@@ -186,7 +217,7 @@ def main():
 
     meta_lines = [
         f'case: {case}',
-        f'collision_avoidance: {collision_avoidance}',
+        f'law_variant: {law_variant}',
         f'start_wall_clock: {start_wall.isoformat()}',
         f'end_wall_clock: {end_wall.isoformat()}',
         f'wall_duration_s: {(end_wall - start_wall).total_seconds():.1f}',

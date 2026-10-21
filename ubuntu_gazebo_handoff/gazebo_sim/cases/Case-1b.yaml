@@ -1,8 +1,10 @@
-# Real-hardware initial conditions for Case-1b (collision avoidance: OFF).
+# Real-hardware initial conditions for Case-1b (law_variant 3: raw-E-driven,
+# no collision avoidance, 10,000,000 gain -- per
+# multi_unicycle_controller_double_angle.py's "Variant 3").
 # x, y in metres, yaw in radians, world frame. First logged row of the real
 # APS Report/Figures/Case-1b/log_data.csv run.
 case: Case-1b
-collision_avoidance: false
+law_variant: 3
 conv_tol: 0.050
 # Real run converged at ~154.7s; generous margin for Gazebo dynamics differing
 # from the real unicycle/EKF loop.

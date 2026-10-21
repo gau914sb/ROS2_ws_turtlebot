@@ -1,15 +1,20 @@
-# Real-hardware initial conditions for Case-4 (collision avoidance: ON).
+# Real-hardware initial conditions for Case-4 (law_variant 2: connectivity +
+# collision avoidance, both under a 10,000,000 gain -- per
+# multi_unicycle_controller_double_angle.py's "VARIANT 2").
 # Same IC family as Case-3, but collision avoidance fixes the near-collision.
-# x, y in metres, yaw in radians, world frame. First logged row of the real
-# APS Report/Figures/Case-4/log_data.csv run.
+# x, y, yaw in metres/radians, world frame -- taken entirely from
+# experiment/move_to_initial_ekf.py's active TARGETS dict (the "no
+# constraints case" block), NOT the real log_data.csv first row. Heading
+# alone (keeping the logged x,y) wasn't enough to change the outcome; testing
+# with the full commanded IC (x, y, and heading) instead of the logged one.
 case: Case-4
-collision_avoidance: true
+law_variant: 2
 conv_tol: 0.050
 # Real run converged at ~203.0s; generous margin for Gazebo dynamics differing
 # from the real unicycle/EKF loop.
 max_duration: 280.0
 robots:
-  bot_0: {x: -0.3034, y: -0.0093, yaw: 0.6830}
-  bot_1: {x: -0.6136, y: 0.4315, yaw: -0.9821}
-  bot_2: {x: 0.1132, y: -0.2382, yaw: 2.1886}
-  bot_3: {x: -0.3801, y: -0.3463, yaw: -2.1991}
+  bot_0: {x: -0.3, y: 0.0, yaw: 0.7853981633974483}
+  bot_1: {x: -0.6, y: 0.4, yaw: -0.7853981633974483}
+  bot_2: {x: 0.1, y: -0.2, yaw: 2.0943951023931953}
+  bot_3: {x: -0.4, y: -0.4, yaw: -2.0943951023931953}

@@ -37,6 +37,38 @@ from launch_ros.actions import Node, PushRosNamespace
 
 
 # ── Robot configurations ──────────────────────────────────────────────────────
+# Real-hardware initial conditions, Case-4 (collision avoidance ON).
+# x, y, yaw -- first logged row of APS Report/Figures/Case-4/log_data.csv.
+# ROBOTS = [
+#     ('bot_0', -0.3034, -0.0093, 0.6830),
+#     ('bot_1', -0.6136, 0.4315, -0.9821),
+#     ('bot_2', 0.1132, -0.2382, 2.1886),
+#     ('bot_3', -0.3801, -0.3463, -2.1991),
+# ]
+
+# ROBOTS = [
+#     ('bot_0', -0.3034, -0.0093, math.pi/4),
+#     ('bot_1', -0.6136, 0.4315, -math.pi/4),
+#     ('bot_2', 0.1132, -0.2382, 2*math.pi/3),
+#     ('bot_3', -0.3801, -0.3463, -2*math.pi/3),
+# ]
+
+# Real-hardware initial conditions, Case-1b (collision avoidance OFF).
+# x, y, yaw -- first logged row of APS Report/Figures/Case-1b/log_data.csv.
+# Swap this in for ROBOTS above to test Case-1b instead.
+# ROBOTS = [
+#     ('bot_0', 0.6705, 0.1398, 1.4427),
+#     ('bot_1', -0.6370, 0.1786, 1.6645),
+#     ('bot_2', -0.6128, -0.1347, -1.2970),
+#     ('bot_3', 0.6413, -0.1755, -1.4689),
+# ]
+
+# Case-3/Case-4 shared IC family, rounded -- exactly matches
+# experiment/move_to_initial_ekf.py's active TARGETS dict (the "no
+# constraints case" block). Case-3 and Case-4 share this same real-hardware
+# IC family; this rounded version sits closer to Case-4's exact IC above
+# (within ~1-5 cm / ~6-11 deg) than to Case-3's (up to ~34 deg off on
+# bot_0's heading). Swap this in for ROBOTS above to match move_to_initial_ekf.py.
 ROBOTS = [
     ('bot_0', -0.3, 0.0, math.pi/4),
     ('bot_1', -0.6, 0.4, -math.pi/4),
@@ -44,6 +76,13 @@ ROBOTS = [
     ('bot_3', -0.4, -0.4, -2*math.pi/3),
 ]
 
+
+# ROBOTS = [
+#     ('bot_0', -0.3, 0.0, math.pi/4),
+#     ('bot_1', -0.6, 0.4, -math.pi/4),
+#     ('bot_2', 0.1, -0.2, 2*math.pi/3),
+#     ('bot_3', -0.4, -0.4, -2*math.pi/3),
+# ]
 
 # ROBOTS = [
 #     ('bot_0', 1.32, 0.44, 0.0),

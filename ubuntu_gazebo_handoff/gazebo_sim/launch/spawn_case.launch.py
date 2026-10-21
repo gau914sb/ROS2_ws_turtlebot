@@ -134,7 +134,7 @@ def launch_setup(context, *args, **kwargs):
         case_cfg = yaml.safe_load(f)
 
     case_name = case_cfg['case']
-    collision_avoidance = bool(case_cfg['collision_avoidance'])
+    law_variant = int(case_cfg['law_variant'])
     conv_tol = float(case_cfg.get('conv_tol', 0.080))
     max_duration = float(case_cfg.get('max_duration', 240.0))
     robots_cfg = case_cfg['robots']
@@ -143,6 +143,7 @@ def launch_setup(context, *args, **kwargs):
     ros_gz_sim_pkg = get_package_share_directory('ros_gz_sim')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
+    use_sim_time_str = use_sim_time.perform(context)
     world = os.path.join(pkg, 'worlds', 'empty_world.world')
     base_sdf = os.path.join(pkg, 'models', 'turtlebot3_burger', 'model.sdf')
     urdf_path = os.path.join(pkg, 'urdf', 'turtlebot3_burger.urdf')
@@ -262,10 +263,11 @@ def launch_setup(context, *args, **kwargs):
             cmd=[
                 'python3', controller_script, '--ros-args',
                 '-p', f'case_name:={case_name}',
-                '-p', f'collision_avoidance:={str(collision_avoidance).lower()}',
+                '-p', f'law_variant:={law_variant}',
                 '-p', f'log_dir:={log_dir}',
                 '-p', f'conv_tol:={conv_tol}',
                 '-p', f'max_duration:={max_duration}',
+                '-p', f'use_sim_time:={use_sim_time_str}',
             ],
             output='screen',
         )],

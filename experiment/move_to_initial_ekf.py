@@ -11,6 +11,11 @@ COMMANDS : TwistStamped on /<robot>/cmd_vel
 
 How it works
 ------------
+  Phase 0 — CALIBRATE_YAW : Drive straight forward a short distance with no
+            turning, and measure the true heading from the resulting
+            displacement (independent of the ArUco marker's own rotation).
+            Fixes a per-robot marker-mounting offset automatically, with no
+            manual input -- see CALIB_DRIVE_DISTANCE below.
   Phase 1 — ROTATE : Turn in-place to face the target position.
   Phase 2 — DRIVE  : Drive forward while correcting heading.
   Phase 3 — ROTATE : Turn in-place to reach the desired final heading.
@@ -61,6 +66,36 @@ ROBOT_MARKER_MAP: Dict[str, int] = {
     'bot_2': 2,
     'bot_3': 3,
 }
+
+# =============================================================================
+# AUTO YAW-OFFSET CALIBRATION — fixes the "robot ends up rotated by n*90
+# degrees" bug in the final ROTATE_TO_HEADING step.
+# =============================================================================
+# The ArUco marker is a flat square glued to the top of each robot. If it
+# wasn't glued with its own zero-orientation edge aligned to the robot's
+# true physical front, quat_to_yaw() on the marker's TF reads an angle
+# that's off from the robot's real heading by a CONSTANT amount (often a
+# multiple of 90 degrees, since a square marker naturally invites being
+# mounted rotated by 90/180/270 from the intended orientation). Position
+# tracking is unaffected (the camera sees the marker's true (x, y)
+# regardless of its rotation) -- only the heading comparison in
+# ROTATE_TO_HEADING is wrong, because `desired_heading` is defined in
+# terms of the ROBOT's front, while the raw marker reading is in terms of
+# whatever direction the marker itself happens to point.
+#
+# Rather than requiring someone to manually point each robot at a known
+# heading, this offset is found automatically from real feedback: at
+# startup, each robot drives straight forward (v > 0, omega = 0) for
+# CALIB_DRIVE_DISTANCE. Since it isn't turning, its ACTUAL direction of
+# travel -- computed purely from the change in (x, y), which doesn't
+# depend on the marker's rotation at all -- is its true heading. Comparing
+# that against the marker's reported yaw during the same drive gives the
+# exact mounting offset, per robot, with no manual input. This runs once
+# per robot per launch of this script, before the normal rotate/drive
+# sequence begins.
+CALIB_DRIVE_DISTANCE = 0.25   # metres -- far enough for an accurate heading fix
+CALIB_SPEED          = 0.08   # m/s -- slow and safe, matches V_MAX's caution
+CALIB_TIMEOUT_SEC    = 20.0   # abort calibration (offset=0) if stuck/blocked
 
 # Target positions AND headings for each robot.
 # These come from pstar in the formation controller:
@@ -218,6 +253,7 @@ class MoveToInitial(Node):
     Drives each robot to its target (x, y, heading) using proportional control.
 
     States per robot:
+      'calibrate_yaw'    — drive straight to auto-measure the marker's yaw offset
       'rotate_to_target' — turn in place to face the target position
       'drive'            — drive forward while correcting heading
       'rotate_to_heading'— turn in place to the final desired heading
@@ -243,14 +279,24 @@ class MoveToInitial(Node):
         # used to compute actual_dt for the ArUco-triggered predict step.
         self.last_ekf_time: Dict[str, Optional[int]] = {}
 
+        # ── Auto yaw-offset calibration state ────────────────────────────
+        self.yaw_offset: Dict[str, float] = {}              # marker->true-heading correction (rad)
+        self.calib_start_xy: Dict[str, tuple] = {}           # (x, y) when this robot's calib drive began
+        self.calib_start_time: Dict[str, float] = {}         # sim clock seconds when calib drive began
+        self.calib_theta_samples: Dict[str, list] = {}       # raw marker theta readings during calib drive
+
         for name in ROBOT_MARKER_MAP:
             self.x[name]     = 0.0
             self.y[name]     = 0.0
             self.theta[name] = 0.0
             self.seen[name]  = False
-            self.phase[name] = 'rotate_to_target'
+            self.phase[name] = 'calibrate_yaw'
             self.ekfs[name]  = RobotEKF(name=name)
             self.last_ekf_time[name] = None
+            self.yaw_offset[name] = 0.0
+            self.calib_start_xy[name] = None
+            self.calib_start_time[name] = None
+            self.calib_theta_samples[name] = []
 
         # ── TF2 ──────────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -310,11 +356,15 @@ class MoveToInitial(Node):
             except (LookupException, ConnectivityException, ExtrapolationException):
                 continue
 
-            # Raw measurement from TF
+            # Raw measurement from TF. The marker's own yaw is corrected by
+            # this robot's auto-calibrated mounting offset (0.0, i.e. a
+            # no-op, until that calibration completes -- see
+            # CALIB_DRIVE_DISTANCE above).
             z_x = tf.transform.translation.x
             z_y = tf.transform.translation.y
             q = tf.transform.rotation
-            z_theta = quat_to_yaw(q.x, q.y, q.z, q.w)
+            raw_yaw = quat_to_yaw(q.x, q.y, q.z, q.w)
+            z_theta = normalize_angle(raw_yaw - self.yaw_offset[name])
 
             # ── Compute actual elapsed time for this robot's EKF cycle ──
             now_ns = self.get_clock().now().nanoseconds
@@ -378,6 +428,56 @@ class MoveToInitial(Node):
                 continue
 
             all_done = False
+
+            # ── Phase: CALIBRATE_YAW ───────────────────────────────────
+            # Drive straight forward (no turning) and measure the true
+            # heading from the resulting displacement, to find and correct
+            # this robot's marker-mounting offset before doing anything
+            # that depends on heading. See CALIB_DRIVE_DISTANCE above.
+            if self.phase[name] == 'calibrate_yaw':
+                if self.calib_start_xy[name] is None:
+                    self.calib_start_xy[name] = (self.x[name], self.y[name])
+                    self.calib_start_time[name] = self.get_clock().now().nanoseconds / 1e9
+                    self.calib_theta_samples[name] = []
+                    self.get_logger().info(f'{name}: calibrating yaw offset (driving straight)...')
+
+                self.calib_theta_samples[name].append(self.theta[name])
+
+                start_x, start_y = self.calib_start_xy[name]
+                traveled = math.hypot(self.x[name] - start_x, self.y[name] - start_y)
+                elapsed = self.get_clock().now().nanoseconds / 1e9 - self.calib_start_time[name]
+
+                if traveled < CALIB_DRIVE_DISTANCE and elapsed < CALIB_TIMEOUT_SEC:
+                    self._cmd(name, CALIB_SPEED, 0.0)
+                    continue
+
+                self._cmd(name, 0.0, 0.0)
+                if traveled < 0.05:
+                    self.get_logger().warn(
+                        f'{name}: yaw calibration drive barely moved ({traveled:.3f} m) -- '
+                        f'leaving yaw offset at 0.0 (check for an obstacle/collision).'
+                    )
+                else:
+                    travel_heading = math.atan2(self.y[name] - start_y, self.x[name] - start_x)
+                    samples = np.array(self.calib_theta_samples[name])
+                    avg_raw_theta = math.atan2(np.mean(np.sin(samples)), np.mean(np.cos(samples)))
+                    offset = normalize_angle(avg_raw_theta - travel_heading)
+                    self.yaw_offset[name] = offset
+                    # Re-baseline the EKF's current heading estimate so
+                    # self.theta[name] is correct immediately, not just on
+                    # the next measurement update.
+                    self.ekfs[name].x_est[2] = self.ekfs[name]._wrap(
+                        self.ekfs[name].x_est[2] - offset
+                    )
+                    self.theta[name] = self.ekfs[name].position[2]
+                    self.get_logger().info(
+                        f'{name}: yaw offset = {math.degrees(offset):+.1f}° '
+                        f'(travelled {traveled:.2f} m, marker read '
+                        f'{math.degrees(avg_raw_theta):.1f}° vs true heading '
+                        f'{math.degrees(travel_heading):.1f}°)'
+                    )
+                self.phase[name] = 'rotate_to_target'
+                continue
 
             tgt = TARGETS[name]
             dx  = tgt['x'] - self.x[name]
