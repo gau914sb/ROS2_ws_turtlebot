@@ -24,3 +24,9 @@ experiment/recordings
 *.swo
 *~
 .DS_Store
+
+# Redundant zip bundles of results folders already tracked unzipped
+# (these are convenience archives for sharing, not source content, and
+# some have exceeded GitHub's 100MB per-file limit)
+ubuntu_gazebo_handoff/APS Report/Figures.zip
+ubuntu_gazebo_handoff/APS Report/Figures/**/*.zip
