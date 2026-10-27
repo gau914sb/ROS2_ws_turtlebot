@@ -1,0 +1,588 @@
+\documentclass[11pt,a4paper]{article}
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pdfsuppressptexinfo=-1
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{mdframed}
+\usepackage{listings}
+\usepackage[hidelinks,pdfusetitle=false]{hyperref}
+\hypersetup{pdftitle={},pdfauthor={},pdfsubject={},pdfkeywords={},pdfcreator={},pdfproducer={}}
+
+\definecolor{boxblue}{rgb}{0.9,0.95,1.0}
+\definecolor{boxorange}{rgb}{1.0,0.95,0.85}
+\newmdenv[backgroundcolor=boxblue,linecolor=blue!50,linewidth=1pt,
+  roundcorner=4pt,innertopmargin=6pt,innerbottommargin=6pt]{mathbox}
+\newmdenv[backgroundcolor=boxorange,linecolor=orange!70,linewidth=1pt,
+  roundcorner=4pt,innertopmargin=6pt,innerbottommargin=6pt]{notebox}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+
+\title{\textbf{Measuring ArUco/EKF Noise on the TurtleBot3 Testbed}\\[0.3em]
+\large Experimental protocol and the tolerance bounds that follow from it}
+\author{}
+\date{27 October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{notebox}
+\textbf{Goal.} Replace the hand-set EKF covariances and the hand-picked
+convergence tolerance with values measured on the testbed, using a
+protocol that can be repeated each session. Every bound in
+Section~\ref{sec:bounds} is written in terms of quantities measured in
+Sections~\ref{sec:static}--\ref{sec:closedloop}.
+\end{notebox}
+
+\tableofcontents
+
+%=============================================================================
+\section{What is measured and why}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+Symbol & Quantity & Experiment & Used for \\
+\midrule
+$\sigma_x,\sigma_y,\sigma_\theta$ & raw per-detection noise & A (static) & $R$; gate; consistency test \\
+$p_\text{out}$ & outlier (jump) fraction & A, C & gate threshold; robust estimates \\
+$\sigma_{d,k}$ & noise on edge distance $k$ & A (static) & convergence and safety tolerances \\
+$f_\text{cam}$, dropouts & detection rate and gaps & B (timing) & predict/update ratio; $Q$ scaling \\
+$\tau_\text{lat}$ & image-to-detection latency & B (timing) & safety margin \\
+$Q_c$ & process noise density & D (driving) & $Q$ \\
+$\tau_\text{act}$ & command-to-motion delay & D (driving) & safety margin; $Q$ residual alignment \\
+$\sigma_{e,\text{cl}}$ & closed-loop edge-error jitter & E (closed-loop hold) & lowest usable \texttt{conv\_tol} \\
+$\sigma_{u\perp}$ & lateral command noise & E & lower bound on lookahead $l$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Experiments A--D characterise the \emph{sensor and plant}. Experiment E
+characterises the \emph{closed loop}; it is the one that explains why a
+very small tolerance makes the formation fall apart at the end of a run
+(the controller ends up chasing measurement noise).
+
+%=============================================================================
+\section{Models as currently implemented}
+\label{sec:model}
+
+Each robot $i$ has state $\bm{x}=(x,y,\theta)$. The camera pipeline
+(\texttt{aruco\_opencv}, then the TF from \texttt{ground\_origin} to
+\texttt{marker\_N}) gives
+\begin{equation}
+  \bm{z}_k = \bm{x}_k + \bm{v}_k,\qquad \bm{v}_k\sim\mathcal{N}(\bm{0},R),
+  \label{eq:meas}
+\end{equation}
+and the predict step uses the last commanded $(v,\omega)$:
+\begin{equation}
+  \bm{x}_{k+1} = f(\bm{x}_k,u_k,\Delta t) + \bm{w}_k =
+  \begin{bmatrix} x_k + v\cos\theta_k\,\Delta t\\ y_k + v\sin\theta_k\,\Delta t\\ \theta_k+\omega\Delta t\end{bmatrix} + \bm{w}_k,
+  \qquad \bm{w}_k\sim\mathcal{N}(\bm{0},Q).
+  \label{eq:proc}
+\end{equation}
+
+Facts about the code (\texttt{multi\_unicycle\_controller\_\allowbreak double\_angle\_\allowbreak experiment\_ekf.py})
+that matter for interpreting $Q$ and $R$:
+\begin{enumerate}[leftmargin=*]
+\item $Q=\operatorname{diag}(10^{-3},10^{-3},2\cdot10^{-3})$ and
+      $R=\operatorname{diag}(0.05,0.05,0.1)$ (SI units). The theory notes
+      (\texttt{ekf\_turtlebot\_theory.tex}) list a different $R$,
+      $\operatorname{diag}(0.004,0.004,0.008)$.
+\item $Q$ is added \emph{per call} and is not scaled by $\Delta t$.
+\item \texttt{predict()} is called at 50\,Hz in the control loop
+      \emph{and} once in every ArUco callback, so the number of predicts
+      between two camera updates is
+      \begin{equation}
+        n = 1 + \frac{50}{f_\text{cam}}.
+        \label{eq:n}
+      \end{equation}
+\item The outlier gate rejects a detection when the squared Mahalanobis
+      distance of the innovation exceeds $11.34=\chi^2_{3}(0.99)$.
+\end{enumerate}
+
+\begin{notebox}
+\textbf{Recommended code change before measuring $Q$:} call
+\texttt{predict()} once per control tick only, and use
+$Q(\Delta t)=Q_c\,\Delta t$ with $Q_c$ in m$^2$/s and rad$^2$/s. Then the
+value measured in Experiment~D transfers directly, independent of the
+camera rate.
+\end{notebox}
+
+%=============================================================================
+\section{Statistical tools used throughout}
+\label{sec:stats}
+
+\subsection{Robust spread and outliers}
+For a series $z_1,\dots,z_N$ (one axis of one marker), use
+\begin{equation}
+  \hat\sigma_\text{MAD} = 1.4826\,\operatorname{median}_k\bigl|z_k-\operatorname{median}(z)\bigr|,
+\end{equation}
+which equals $\sigma$ for Gaussian data and ignores a minority of jumps.
+A sample is an \emph{outlier} if $|z_k-\operatorname{median}(z)|>5\hat\sigma_\text{MAD}$
+(the Gaussian probability of this is $5.7\times10^{-7}$, so practically every flagged
+sample is a genuine jump). Report the outlier fraction $p_\text{out}$, then
+compute the ordinary standard deviation $\hat\sigma$ on the inliers. If
+$\hat\sigma$ and $\hat\sigma_\text{MAD}$ differ by more than about 20\,\%,
+the inliers are not Gaussian and the quantile-based bounds of
+Section~\ref{sec:bounds} must be used instead of the Gaussian ones.
+
+\subsection{Autocorrelation and effective sample size}
+A Kalman filter assumes $\bm{v}_k$ is white. Compute the sample
+autocorrelation $\rho_j$ of the inlier series for lags $j=1,\dots,J$
+(stop at the first $j$ where $|\rho_j|<2/\sqrt N$). The effective number
+of independent samples is
+\begin{equation}
+  N_\text{eff} = \frac{N}{1+2\sum_{j=1}^{J}\rho_j}.
+  \label{eq:neff}
+\end{equation}
+For white noise $N_\text{eff}=N$. Report the correlation time
+$\tau_c = N/(N_\text{eff} f_\text{cam})$. If $\tau_c$ is much larger than one frame,
+the noise is coloured (e.g.\ slow lighting drift or camera vibration), and
+$R$ alone does not describe it.
+
+\subsection{Confidence interval on a standard deviation}
+For Gaussian samples, $(N_\text{eff}-1)\hat\sigma^2/\sigma^2\sim\chi^2_{N_\text{eff}-1}$, so a
+$1-\alpha$ interval is
+\begin{equation}
+  \hat\sigma\sqrt{\frac{N_\text{eff}-1}{\chi^2_{N_\text{eff}-1}(1-\alpha/2)}}
+  \;\le\;\sigma\;\le\;
+  \hat\sigma\sqrt{\frac{N_\text{eff}-1}{\chi^2_{N_\text{eff}-1}(\alpha/2)}} .
+\end{equation}
+For large $N_\text{eff}$, the relative half-width is about
+$z_{1-\alpha/2}/\sqrt{2N_\text{eff}}$. A $\pm10\,\%$ interval at 95\,\%
+therefore needs $N_\text{eff}\approx 192$. This sets the recording length:
+$T\ge 192\,\tau_c$.
+
+\subsection{Are all robots the same?}
+To test $H_0:\sigma_0=\sigma_1=\sigma_2=\sigma_3$ (per axis), use the
+Brown--Forsythe test (Levene's test with medians), which is robust to
+non-Gaussian tails. Thin each series to every $\lceil\tau_c f_\text{cam}\rceil$-th
+sample first so the samples are close to independent. If $H_0$ is not
+rejected at 5\,\%, pool:
+\begin{equation}
+  \hat\sigma^2_\text{pool}=\frac{\sum_i (N_{\text{eff},i}-1)\hat\sigma_i^2}{\sum_i (N_{\text{eff},i}-1)}.
+\end{equation}
+If it is rejected, keep per-robot values: $R$ is then robot-specific,
+which usually points to a damaged or badly mounted marker.
+
+%=============================================================================
+\section{Recording setup (all experiments)}
+
+Record everything with one bag per experiment, on the machine that runs
+the controller:
+\begin{lstlisting}
+ros2 bag record -o <exp>_<date> /aruco_detections /tf /tf_static \
+  /bot_0/cmd_vel /bot_1/cmd_vel /bot_2/cmd_vel /bot_3/cmd_vel
+\end{lstlisting}
+Measurements are taken from the \texttt{ground\_origin}$\to$\texttt{marker\_N}
+transforms, exactly as the controller sees them. The EKF output does not
+need to be logged separately: given the detections, the commands and the
+timestamps, the filter is deterministic and can be replayed offline with
+any $Q$ and $R$. Keep the lighting, camera height and ground-origin
+calibration identical to the formation runs.
+
+%=============================================================================
+\section{Experiment A --- static noise}
+\label{sec:static}
+
+\subsection{Design}
+Use four positions $P_1,\dots,P_4$: the desired formation $p^*$ placed at
+the centre of the arena. Do four 60\,s sessions, rotating the robots
+through the positions so that each robot visits each position once
+(a $4\times4$ Latin square):
+\begin{center}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Session & $P_1$ & $P_2$ & $P_3$ & $P_4$\\
+\midrule
+1 & bot\_0 & bot\_1 & bot\_2 & bot\_3\\
+2 & bot\_1 & bot\_2 & bot\_3 & bot\_0\\
+3 & bot\_2 & bot\_3 & bot\_0 & bot\_1\\
+4 & bot\_3 & bot\_0 & bot\_1 & bot\_2\\
+\bottomrule
+\end{tabular}
+\end{center}
+This separates a robot effect (marker print, mounting) from a position
+effect (distance from the image centre, lens distortion, lighting). Session 1
+is the actual formation geometry, so it also gives $\sigma_{d,k}$ for the
+real edges directly. Motors on, velocities zero (so that any vibration of
+a powered robot is included).
+
+Add one extra session with a single robot visiting a $3\times3$ grid
+covering the arena, 30\,s per point, to check whether $\sigma$ grows towards
+the image edges.
+
+\subsection{Analysis}
+For each marker, session and axis ($x$, $y$, $\theta$, with $\theta$ unwrapped):
+\begin{enumerate}[leftmargin=*]
+\item $p_\text{out}$, $\hat\sigma$, $\hat\sigma_\text{MAD}$, $\rho_1$, $N_\text{eff}$, $\tau_c$ and the CI of $\hat\sigma$.
+\item Robot effect: Brown--Forsythe across robots, pooled over positions.
+      Position effect: the same test across positions, pooled over robots.
+\item Cross-correlation between robots,
+      $\rho_{ij}=\operatorname{corr}(\delta x_i,\delta x_j)$. A large common
+      component means camera vibration or a shared lighting effect, which
+      cancels in relative distances (Section~\ref{sec:edge}).
+\item $\sigma_{d,k}$: the standard deviation of each logged edge distance
+      $d_k$ over the session, computed both from raw detections and from
+      the replayed EKF output.
+\item $\theta$ flips: report separately the fraction of samples with a
+      heading jump larger than $20^\circ$. These come from the
+      planar-pose ambiguity of PnP on small markers (about 40\,px here) and
+      should be treated as outliers, not folded into $R_\theta$.
+\end{enumerate}
+
+\subsection{Result: \texorpdfstring{$R$}{R}}
+The measured sensor covariance is
+\begin{equation}
+  R_\text{meas}=\operatorname{diag}(\hat\sigma_x^2,\hat\sigma_y^2,\hat\sigma_\theta^2)
+\end{equation}
+(pooled if allowed), with the outlier fraction $p_\text{out}$ reported
+alongside it. Off-diagonal terms can be included if the $x$--$y$ correlation
+of a marker is significant.
+
+%=============================================================================
+\section{Experiment B --- timing}
+\label{sec:timing}
+
+From the same bags:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Detection rate:} for each marker, the inter-arrival times
+      $\Delta t_k$ of detections (header stamps). Report
+      $f_\text{cam}=1/\operatorname{median}(\Delta t)$ and the 99th
+      percentile of $\Delta t$.
+\item \textbf{Dropouts:} the fraction of frames in which a marker is
+      missing, and the distribution of consecutive-miss run lengths. The
+      longest run, times $v_\text{max}$, is the worst-case dead-reckoning
+      distance.
+\item \textbf{Latency:} $\tau_\text{lat}=t_\text{bag}-t_\text{header}$ for
+      \texttt{/aruco\_detections}, i.e.\ the time from image capture to the
+      detection being available. Report the median and the 99th percentile.
+\end{enumerate}
+
+%=============================================================================
+\section{Experiment C --- jumpiness during runs}
+\label{sec:jumps}
+
+Static data cannot show motion blur or detections that jump during
+turns. Use the bags of normal formation runs:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Innovation series.} Replay the EKF offline and store each
+      innovation $\bm{y}_k=\bm{z}_k-\hat{\bm{x}}_{k|k-1}$ and its covariance $S_k$.
+\item \textbf{Jump rate.} Between consecutive detections the robot moves at most
+      $v_\text{max}\Delta t_k$ (1.1\,mm at 50\,Hz, 2.6\,mm at 21\,Hz). A
+      detection is a jump if
+      \begin{equation}
+        \|\bm{z}_{k}^{xy}-\bm{z}_{k-1}^{xy}\| > v_\text{max}\Delta t_k + 5\sqrt{2}\,\sigma_{xy},
+      \end{equation}
+      and similarly for $\theta$ with $\omega_\text{max}$ and $\sigma_\theta$.
+      Report the jump rate per minute, per robot.
+\item \textbf{Filter consistency (NIS).} The normalised innovation squared
+      $\epsilon_k=\bm{y}_k^\top S_k^{-1}\bm{y}_k$ is $\chi^2_3$ distributed
+      if $Q$ and $R$ are correct. Over $N$ updates,
+      \begin{equation}
+        \bar\epsilon=\frac1N\sum_k\epsilon_k\quad\text{should lie in}\quad
+        \Bigl[\tfrac{\chi^2_{3N}(0.025)}{N},\;\tfrac{\chi^2_{3N}(0.975)}{N}\Bigr]\approx 3\pm 1.96\sqrt{6/N}.
+      \end{equation}
+      $\bar\epsilon\ll3$ means $Q$ and/or $R$ are larger than the real
+      noise (an over-cautious, overly smooth filter). $\bar\epsilon\gg3$ means
+      they are too small. Use a whiteness test on $\bm{y}_k$ as well:
+      correlated innovations mean the model is missing something,
+      typically latency.
+\item \textbf{Gate behaviour.} With correct $Q,R$ the gate rejects
+      $1\,\%+p_\text{out}$ of detections. Compare with the replayed
+      rejection rate.
+\end{enumerate}
+
+%=============================================================================
+\section{Experiment D --- process noise and actuation delay}
+\label{sec:proc}
+
+\subsection{Design}
+For each robot, with \texttt{cmd\_vel} recorded:
+\begin{enumerate}[leftmargin=*]
+\item straight lines at $v=0.03$ and $0.055$\,m/s, 10\,s each, 3 repeats;
+\item turns in place at $\omega=\pm0.13$\,rad/s, 10\,s each;
+\item arcs at $v=0.04$\,m/s, $\omega=\pm0.1$\,rad/s;
+\item step inputs, from rest to $v=0.055$, to measure the delay.
+\end{enumerate}
+
+\subsection{Actuation delay}
+Estimate the speed $\hat v(t)$ from detections smoothed over about 0.3\,s.
+$\tau_\text{act}$ is the shift that maximises the cross-correlation between
+the commanded $v(t-\tau)$ and $\hat v(t)$, checked against the step responses.
+
+\subsection{Estimating \texorpdfstring{$Q_c$}{Qc}}
+For consecutive inlier detections $k$, $k+1$, with the commands shifted by
+$\tau_\text{act}$, form the one-step residual
+\begin{equation}
+  \bm{r}_k=\bm{z}_{k+1}-f(\bm{z}_k,u_{k},\Delta t_k).
+\end{equation}
+Substituting \eqref{eq:meas} and \eqref{eq:proc} and linearising $f$
+around the true state ($F_k=\partial f/\partial\bm{x}$):
+\begin{equation}
+  \bm{r}_k \approx \bm{w}_k + \bm{v}_{k+1} - F_k\bm{v}_k
+  \quad\Rightarrow\quad
+  \Cov(\bm{r}_k)=Q(\Delta t_k)+R+F_kRF_k^\top .
+\end{equation}
+Since $F_k=I+O(v\Delta t)$ and $v\Delta t\le 2.6$\,mm, $F_kRF_k^\top\approx R$, so
+\begin{mathbox}
+\begin{equation}
+  Q(\Delta t)\approx\Cov(\bm{r})-2R_\text{meas}.
+\end{equation}
+\end{mathbox}
+To get the density, regress the per-axis residual variance on $\Delta t$
+over intervals of different lengths (use every 1st, 2nd, 4th, 8th
+detection): the slope is $Q_c$ and the intercept should be $2R$, which
+checks Experiment A. If the slope is not distinguishable from zero, the
+unicycle model is better than the camera over these intervals, and $Q$
+mainly expresses how much smoothing you want (Section~\ref{sec:tuning}).
+
+%=============================================================================
+\section{Experiment E --- closed-loop hold}
+\label{sec:closedloop}
+
+This experiment measures what the tolerance actually has to cover.
+\begin{enumerate}[leftmargin=*]
+\item Place the robots in the desired formation (within about 2\,cm).
+\item Run the formation controller with the stopping rule \emph{disabled}
+      (set \texttt{conv\_tol}$=0$) for 120\,s, with the variant used in
+      the real runs.
+\item Record the bag, and also log the law output $u_i=(u_x,u_y)$ and
+      the commands $(v_i,\omega_i)$ at 50\,Hz.
+\end{enumerate}
+Report, per edge: the mean error $\bar e_k$, the jitter $\sigma_{e,\text{cl},k}$,
+its correlation time, the 99.9th percentile of $|e_k|$, and whether the
+error drifts. For each robot, report the standard deviations of
+$u_\parallel=u\cdot h$ and $u_\perp=u\cdot h^\perp$, with
+$h=(\cos\theta,\sin\theta)$ and $h^\perp=(-\sin\theta,\cos\theta)$.
+
+Expect $\sigma_{e,\text{cl}}>\sigma_d$: near equilibrium $u$ is mostly
+noise, and $\omega=u_\perp/l$ turns that noise into rotation, which
+then turns into translation through $v=2u_\parallel$. If the error
+drifts instead of fluctuating around $\bar e$, the closed loop has no
+usable accuracy below that level, and \texttt{conv\_tol} must stay above
+it.
+
+%=============================================================================
+\section{From measured noise to filter parameters}
+\label{sec:tuning}
+
+\subsection{Steady-state gain of the current filter}
+For one axis of a stationary robot ($v=\omega=0$), the filter adds $q=nQ$
+between updates (with $n$ from \eqref{eq:n}) and updates with variance
+$r$. The steady-state prior variance $P^-$ satisfies
+$P^- = q + P^+$ with $P^+ = P^-r/(P^-+r)$, which gives
+\begin{mathbox}
+\begin{equation}
+  P^-=\frac{q+\sqrt{q^2+4qr}}{2},\qquad
+  K=\frac{P^-}{P^-+r}\;\approx\;\sqrt{q/r}\quad(q\ll r).
+  \label{eq:K}
+\end{equation}
+\end{mathbox}
+The estimate is then an exponential average of the detections. If the
+true detection noise is $\sigma_\text{meas}^2$ (whatever value is used for
+$r$), the noise left in the estimate is
+\begin{equation}
+  \sigma_\text{est}^2=\sum_{j\ge0}K^2(1-K)^{2j}\sigma^2_\text{meas}=\frac{K}{2-K}\,\sigma^2_\text{meas},
+  \label{eq:sest}
+\end{equation}
+and the averaging time constant is $\tau_f\approx 1/(K f_\text{cam})$.
+
+\textbf{Current values}, with $f_\text{cam}\approx21$\,Hz (so $n\approx3.4$):
+position $q=3.4\times10^{-3}$, $r=0.05$ give $K=0.23$, and heading
+$q=6.8\times10^{-3}$, $r=0.1$ also give $K=0.23$, because $Q/R$ is $0.02$
+on both axes. Hence $\tau_f\approx0.21$\,s and $\sigma_\text{est}\approx0.36\,\sigma_\text{meas}$.
+
+\subsection{Two defensible choices}
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Consistent filter.} Set $R=R_\text{meas}$ and $Q=Q_c\Delta t$
+      from Experiments A and D. Justification: both are measured. Check:
+      $\bar\epsilon$ (Experiment C) inside its interval.
+\item \textbf{Deliberately smoothed filter.} Only the ratio $Q/R$ sets $K$
+      and therefore the estimate; the absolute scale sets only $P$ and the
+      gate. Choose $K$ from the smoothing time you want,
+      $K=1/(\tau_f f_\text{cam})$, then $q/r=K^2/(1-K)$ (from \eqref{eq:K}).
+      Justification: report $R_\text{meas}$, the chosen $\tau_f$, and why
+      that amount of smoothing is needed (for example jumps, latency, or
+      $\omega$ noise in Experiment E). Then scale $R$ so that the gate still
+      tests against the measured noise, i.e.\ the NIS check stays meaningful.
+\end{enumerate}
+Using $R$ several hundred times $R_\text{meas}$ (as now) without stating
+which choice was made cannot be justified as a noise model, only as
+smoothing.
+
+\subsection{Gate threshold}
+Along one axis, the gate admits innovations up to
+$|y|\le\sqrt{11.34\,S}$ with $S=P^-+r$. With the current values this is
+0.86\,m in position and $69^\circ$ in heading, so PnP heading flips pass
+through. With $R=R_\text{meas}$, a $5\sigma$ jump is rejected. Choose the
+threshold from the jump-size distribution of Experiment C: it should
+separate the genuine jumps from the Gaussian part.
+
+%=============================================================================
+\section{Tolerance bounds}
+\label{sec:bounds}
+
+\subsection{Noise on an edge distance}
+\label{sec:edge}
+For $d=\|p_i-p_j\|$ with small position errors $\delta p_i,\delta p_j$ and
+unit vector $\hat u=(p_i-p_j)/d$:
+\begin{equation}
+  \delta d\approx\hat u^\top(\delta p_i-\delta p_j)
+  \;\Rightarrow\;
+  \sigma_d^2=\hat u^\top\bigl(\Sigma_i+\Sigma_j-\Sigma_{ij}-\Sigma_{ji}\bigr)\hat u,
+  \label{eq:sd}
+\end{equation}
+where $\Sigma_{ij}$ is the cross-covariance. With independent isotropic
+errors this is $\sigma_d=\sqrt2\,\sigma_p$. Correlated errors (camera
+vibration) cancel. Use the directly measured $\sigma_{d,k}$ from
+Experiment A, and \eqref{eq:sd} only as a cross-check. Note that
+$\sigma_p$ here is the noise of the quantity the controller uses: the EKF
+estimate, $\sigma_\text{est}$ from \eqref{eq:sest}, not the raw detection.
+
+\subsection{Convergence tolerance}
+Let $e_k^m=e_k+n_k$ be the measured error of edge $k$, with jitter
+$\sigma$. While the robots are moving, $\sigma=\sigma_{e,\text{cl}}$ from
+Experiment E. While they are stopped, $\sigma=\sigma_d$.
+
+\paragraph{Lower limit on the stop threshold.}
+For the stop condition $|e^m_k|\le\texttt{tol}$ on all 5 edges to be
+reached and held without the controller chasing noise, the threshold
+must clear the closed-loop jitter. Using Bonferroni over 5 edges with
+total probability $\alpha$:
+\begin{mathbox}
+\begin{equation}
+  \texttt{tol}_\text{in}\;\ge\;|\bar e_k|+z_{1-\alpha/10}\,\sigma_{e,\text{cl},k}\quad\text{for all }k,
+  \qquad z_{1-0.001}=3.09\ (\alpha=0.01).
+  \label{eq:tolin}
+\end{equation}
+\end{mathbox}
+If the jitter is not Gaussian, use the 99.9th percentile of $|e_k|$ from
+Experiment E directly. This is the quantitative form of the observation
+that a very small \texttt{conv\_tol} breaks the formation at the end of a run.
+
+\paragraph{Resume threshold (hysteresis).}
+Once stopped, a false restart happens if noise pushes a measured error from
+$\texttt{tol}_\text{in}$ above $\texttt{tol}_\text{out}=\texttt{tol}_\text{in}+h$.
+In the worst case the true error sits exactly at $\texttt{tol}_\text{in}$.
+Over a hold of $T$ seconds there are $N_\text{eff}=T/\tau_c$ independent samples
+per edge. For a total false-restart probability $\alpha$ over 5 edges,
+\begin{mathbox}
+\begin{equation}
+  h\;\ge\;\sigma_d\;\Phi^{-1}\!\Bigl(1-\frac{\alpha}{5N_\text{eff}}\Bigr).
+  \label{eq:h}
+\end{equation}
+\end{mathbox}
+Example: $T=60$\,s, $\tau_c=0.2$\,s, $\alpha=0.05$ gives $N_\text{eff}=300$
+and $h\ge3.99\,\sigma_d$.
+
+\paragraph{Hold time before stopping.}
+If the stop condition must hold for $M$ consecutive independent samples,
+a configuration whose true error is $\delta$ above $\texttt{tol}_\text{in}$
+passes by chance with probability at most $\Phi(-\delta/\sigma)^M$. Given
+$\sigma$ and $M$, this defines how far above $\texttt{tol}_\text{in}$ the true
+error can still be when the robots stop.
+
+\paragraph{Accuracy that can be claimed.}
+After stopping, the true error satisfies, with confidence $1-\alpha$ over 5 edges,
+\begin{equation}
+  |e_k|\le\texttt{tol}_\text{in}+z_{1-\alpha/10}\,\sigma_d/\sqrt{M_\text{eff}},
+\end{equation}
+where $M_\text{eff}$ is the number of independent samples averaged in the
+stop check (1 for the raw check). A final error inside
+$\texttt{tol}_\text{in}$ is therefore the dead band of the stopping rule,
+not a steady-state error of the control law.
+
+\subsection{Safety and connectivity margins}
+The controller is meant to keep $0.295\,\text{m}\le d\le1.465\,\text{m}$
+between centres. The estimated distance lags the true one by the latency
+and the filter delay, and it is noisy. With the maximum closing speed
+$2v_\text{max}$:
+\begin{mathbox}
+\begin{equation}
+  d_\text{true}\;\ge\;d_\text{meas}-z\,\sigma_d-2v_\text{max}\,(\tau_\text{lat}+\tau_\text{act}+\tau_f).
+\end{equation}
+\end{mathbox}
+So a logged distance proves the lower bound held only if
+$d_\text{meas}\ge0.295+z\sigma_d+2v_\text{max}(\tau_\text{lat}+\tau_\text{act}+\tau_f)$,
+and symmetrically for the upper bound. Example: $\sigma_d=10$\,mm, $z=3$,
+and a total delay of 0.4\,s give a margin of $30+44=74$\,mm. Use the same
+margin when calling a logged dip below 0.295\,m a real violation.
+
+\subsection{Lower bound on the lookahead length}
+From the conversion $\omega=u_\perp/l$, noise in the law output becomes
+turn-rate noise $\sigma_\omega=\sigma_{u\perp}/l$. Heading noise
+contributes $\delta u_\perp\approx-u_\parallel\delta\theta$, which is
+negligible near convergence where $u$ is small. Requiring the turn-rate
+noise to use at most a fraction $\beta$ of $\omega_\text{max}$:
+\begin{mathbox}
+\begin{equation}
+  l\;\ge\;\frac{\sigma_{u\perp}}{\beta\,\omega_\text{max}} .
+\end{equation}
+\end{mathbox}
+With $\sigma_{u\perp}$ from Experiment E, this states the reason for
+$l=0.25$\,m in measured terms. With $\beta=0.25$ and $\omega_\text{max}=0.13$\,rad/s,
+the current $l$ is justified if $\sigma_{u\perp}\le8$\,mm/s.
+
+%=============================================================================
+\section{Results sheet}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+Quantity & Value (with 95\,\% CI) & Exp. \\
+\midrule
+$\sigma_x,\sigma_y$ (pooled? Brown--Forsythe $p$) & & A\\
+$\sigma_\theta$, $\theta$-flip fraction & & A\\
+$p_\text{out}$, $\tau_c$ & & A\\
+$\sigma_{d,k}$ for $k=1..5$ (raw / EKF) & & A\\
+$f_\text{cam}$, dropout fraction, longest gap & & B\\
+$\tau_\text{lat}$ (median / p99) & & B\\
+jump rate, $\bar\epsilon$ (NIS), gate rejection rate & & C\\
+$Q_c$ (position / heading), $\tau_\text{act}$ & & D\\
+$\bar e_k$, $\sigma_{e,\text{cl},k}$, p99.9 $|e_k|$, $\sigma_{u\perp}$ & & E\\
+\midrule
+$\texttt{tol}_\text{in}$ \eqref{eq:tolin}, $h$ \eqref{eq:h} & & --\\
+safety margin, minimum $l$ & & --\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%=============================================================================
+\appendix
+\section{Evidence available before these experiments}
+
+These numbers come from data that was not recorded for this purpose. They
+only bracket the answer.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}X l X@{}}
+\toprule
+Source & Value & Limitation \\
+\midrule
+Case-4b overhead video, marker centroid and edge angle, 1\,s detrended
+& $\sigma_{xy}\approx0.55$\,mm, $\sigma_\theta\approx1.1^\circ$, no flips
+& 2D image measurement, not the PnP pose the EKF uses; MP4 compression smooths the noise; a \textbf{lower bound} \\
+Case-4b EKF log, robots mostly stopped, 80--150\,s
+& $\sigma_{d,k}=8$--$17$\,mm, peak-to-peak up to 88\,mm
+& includes short restarts of the controller, so it is partly real motion; an \textbf{upper bound} \\
+Case-4b video frame count vs.\ run length
+& $f_\text{cam}\approx21$\,Hz
+& the recorder's rate, assumed to match the detector's \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\end{document}
